@@ -9,6 +9,7 @@ param (
 )
 $env:CGO_ENABLED=0
 $env:GOARCH=$arch
+$env:GO111MODULE=on
 foreach ($filename_os in $oses -split " ") {
     $env:GOOS=${filename_os}
     go build -ldflags $ldflags -o ${bindir}/${filename}-${filename_os}-${arch} github.com/${org}/${project}/cmd/...;

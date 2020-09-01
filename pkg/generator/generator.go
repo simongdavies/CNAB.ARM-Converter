@@ -8,14 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/deislabs/cnab-go/bundle"
+	"github.com/cnabio/cnab-go/bundle"
 	"github.com/docker/distribution/reference"
-	"github.com/endjin/CNAB.ARM-Converter/pkg/common"
-	"github.com/endjin/CNAB.ARM-Converter/pkg/template"
-)
-
-const (
-	bundlecontainerregistry = "cnabquickstartstest.azurecr.io/"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 )
 
 // GenerateTemplateOptions is the set of options for configuring GenerateTemplate
@@ -44,6 +40,9 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 
 	bundleName := bundle.Name
 	bundleTag, err := getBundleTag(bundle)
+	if err != nil {
+		return err
+	}
 	bundleActions := make([]string, 0, len(bundle.Actions)+3)
 	defaultActions := []string{"install", "upgrade", "uninstall"}
 	bundleActions = append(bundleActions, defaultActions...)
@@ -304,20 +303,16 @@ func toARMType(jsonType string, isSensitive bool) (string, error) {
 	switch jsonType {
 	case "boolean":
 		armType = "bool"
-		break
 	case "integer":
 		armType = "int"
-		break
 	case "string":
 		if isSensitive {
 			armType = "securestring"
 		} else {
 			armType = "string"
 		}
-		break
 	case "object", "array":
 		armType = jsonType
-		break
 	default:
 		err = fmt.Errorf("Unable to convert type '%s' to ARM template parameter type", jsonType)
 	}

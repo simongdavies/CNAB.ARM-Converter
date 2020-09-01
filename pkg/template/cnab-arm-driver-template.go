@@ -3,7 +3,7 @@ package template
 import (
 	"fmt"
 
-	"github.com/endjin/CNAB.ARM-Converter/pkg/common"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 )
 
 const (
@@ -292,7 +292,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 		Outputs:        output,
 	}
 
-	template.setContainerImage(containerImageName, containerImageVersion)
+	_ = template.setContainerImage(containerImageName, containerImageVersion)
 
 	if simplify {
 		template.addSimpleVariables(bundleName, bundleTag)

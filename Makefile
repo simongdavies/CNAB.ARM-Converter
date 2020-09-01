@@ -1,10 +1,12 @@
 PROJECT         := CNAB.ARM-Converter
 FILENAME        := cnabarmdriver
-ORG             := endjin
+ORG             := simongdavies
 BINDIR          := $(CURDIR)/bin
 GOFLAGS         :=
 LDFLAGS         := -w -s
 TESTFLAGS       := -v
+GO = GO111MODULE=on go
+COMMIT ?= $(shell git rev-parse --short HEAD)
 
 ifeq ($(OS),Windows_NT)
 	TARGET = $(FILENAME).exe
@@ -18,8 +20,7 @@ endif
 
 GIT_TAG   := $(shell git describe --tags --always)
 VERSION   ?= ${GIT_TAG}
-LDFLAGS   += -X main.Version=$(VERSION)
-
+LDFLAGS   += -X  github.com/$(ORG)/$(PROJECT)/pkg.Version=$(VERSION) -X github.com/$(ORG)/$(PROJECT)/pkg.Commit=$(COMMIT)
 
 .PHONY: default
 default: build
@@ -27,7 +28,8 @@ default: build
 .PHONY: build
 build:
 
-	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $(BINDIR)/$(TARGET) github.com/$(ORG)/$(PROJECT)/cmd/...
+	$(GO) mod tidy
+	$(GO) build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $(BINDIR)/$(TARGET) github.com/$(ORG)/$(PROJECT)/cmd/...
 
 CX_OSES  = linux windows darwin
 CX_ARCHS = amd64
@@ -40,7 +42,7 @@ else
 	@for os in $(CX_OSES); do \
 		echo "building $$os"; \
 		for arch in $(CX_ARCHS); do \
-			GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o $(BINDIR)/$(TARGET)-$$os-$$arch github.com/$(ORG)/$(PROJECT)/cmd/...; \
+			GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -ldflags '$(LDFLAGS)' -o $(BINDIR)/$(TARGET)-$$os-$$arch github.com/$(ORG)/$(PROJECT)/cmd/...; \
 		done; \
 		if [ $$os = 'windows' ]; then \
 			mv $(BINDIR)/$(TARGET)-$$os-$$arch $(BINDIR)/$(TARGET)-$$os-$$arch.exe; \
@@ -50,30 +52,22 @@ endif
 
 .PHONY: debug
 debug:
-	go build $(GOFLAGS) -o $(BINDIR)/$(TARGET) github.com/$(ORG)/$(PROJECT)/cmd/...
+	$(GO) build $(GOFLAGS) -o $(BINDIR)/$(TARGET) github.com/$(ORG)/$(PROJECT)/cmd/...
 
 .PHONY: test
 test:
-	go test $(TESTFLAGS) ./...
+	$(GO) test $(TESTFLAGS) ./...
 
 .PHONY: lint
 lint:
 	golangci-lint run --config ./golangci.yml
 
-HAS_DEP          := $(shell $(CHECK) dep)
 HAS_GOLANGCI     := $(shell $(CHECK) golangci-lint)
 HAS_GOIMPORTS    := $(shell $(CHECK) goimports)
-GOLANGCI_VERSION := v1.16.0
+GOLANGCI_VERSION := v1.30.0
 
 .PHONY: bootstrap
 bootstrap:
-ifndef HAS_DEP
-ifeq ($(OS),Windows_NT)
-	choco install dep -y
-else
-	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-endif
-endif
 
 ifndef HAS_GOLANGCI
 ifeq ($(OS),Windows_NT)
@@ -86,5 +80,3 @@ endif
 ifeq ($(OS),Windows_NT)
 	choco install diffutils -y
 endif
-
-	dep ensure -vendor-only -v
