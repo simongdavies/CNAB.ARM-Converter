@@ -1,13 +1,14 @@
 package template
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/pkg/errors"
+)
 
 const (
-	//ContainerGroupName is the value of the ContainerGroup Resource Name property in the generated template
-	ContainerGroupName = "[variables('containerGroupName')]"
-
-	//ContainerName is the value of the Container Resource Name property for the container that runs porter in the generated template
-	ContainerName = "[variables('containerName')]"
+	//DeploymentScriptName is the value of the ContainerGroup Resource Name property in the generated template
+	DeploymentScriptName = "runPorter"
 )
 
 // Template defines an ARM Template that can run a CNAB Bundle
@@ -63,42 +64,31 @@ type StorageProperties struct {
 	Encryption Encryption `json:"encryption"`
 }
 
-// Requests defines the CPU and Memorty requirements of the Container instance in the generated template
-type Requests struct {
-	CPU        string `json:"cpu"`
-	MemoryInGb string `json:"memoryInGb"`
+// DeploymentScript properties defines the properties of the deployment script in the generated template
+// TODO fix Retention Interval and Timeout types
+type DeploymentScriptProperties struct {
+	RetentionInterval      string                 `json:"retentionInterval"`
+	Timeout                string                 `json:"timeout"`
+	ForceUpdateTag         string                 `json:"forceUpdateTag"`
+	AzCliVersion           string                 `json:"azCliVersion"`
+	Arguments              string                 `json:"arguments"`
+	ScriptContent          string                 `json:"scriptContent"`
+	EnvironmentVariables   []EnvironmentVariable  `json:"environmentVariables"`
+	StorageAccountSettings StorageAccountSettings `json:"storageAccountSettings"`
 }
 
-// Resources defines the resource requests for the Container instance in the generated template
-type Resources struct {
-	Requests Requests `json:"requests"`
+// StorageAccountSettings defines the storage account settings for the storage account settings property of the deployment script in the generated template
+
+type StorageAccountSettings struct {
+	StorageAccountKey  string `json:"storageAccountKey"`
+	StorageAccountName string `json:"storageAccountName"`
 }
 
-// EnvironmentVariable defines the environment variables that are created for the container in the generated template
+// EnvironmentVariable defines the environment variables that are created for the deployment script in the generated template
 type EnvironmentVariable struct {
 	Name        string `json:"name"`
 	SecureValue string `json:"secureValue,omitempty"`
 	Value       string `json:"value,omitempty"`
-}
-
-//ContainerProperties define the properties of the container resource in the generated template
-type ContainerProperties struct {
-	Image                string                `json:"image"`
-	Resources            Resources             `json:"resources"`
-	EnvironmentVariables []EnvironmentVariable `json:"environmentVariables"`
-}
-
-// Container defines the container in the generated template
-type Container struct {
-	Name       string              `json:"name"`
-	Properties ContainerProperties `json:"properties"`
-}
-
-//ContainerGroupProperties defines the properties of the Container Group in the generated template
-type ContainerGroupProperties struct {
-	Containers    []Container `json:"containers"`
-	OsType        string      `json:"osType"`
-	RestartPolicy string      `json:"restartPolicy"`
 }
 
 // Resource defines a resource in the generated template
@@ -112,6 +102,29 @@ type Resource struct {
 	Kind       string      `json:"kind,omitempty"`
 	DependsOn  []string    `json:"dependsOn,omitempty"`
 	Properties interface{} `json:"properties"`
+	Identity   *Identity   `json:"identity,omitempty"`
+}
+
+// Identity defines managed identity
+type Identity struct {
+	Type                   IdentityType `json:"type"`
+	UserAssignedIdentities map[string]interface{}
+}
+
+// IdentityType is the type of MSI
+type IdentityType int
+
+const (
+	System IdentityType = iota
+	User
+)
+
+// RoleAssignment defines a role assignment in the generated template
+type RoleAssignment struct {
+	RoleDefinitionId string `json:"roleDefinitionId"`
+	PrincipalId      string `json:"principalId"`
+	Scope            string `json:"scope"`
+	PrincipalType    string `json:"principalType"`
 }
 
 // Output defines an output in the generated template
@@ -125,44 +138,38 @@ type Outputs struct {
 	CNABPackageActionLogsCommand Output `json:"CNAB Package Action Logs Command"`
 }
 
-// setContainerImage sets the image for the container instance
-func (template *Template) setContainerImage(imageName string, version string) error {
-	container, err := findContainer(template)
+// SetDeploymentScriptEnvironmentVariable sets an environment variable for the deployment script
+func (template *Template) SetDeploymentScriptEnvironmentVariable(environmentVariable EnvironmentVariable) error {
+	deploymentScriptProperties, err := findDeploymentsScript(template)
 	if err != nil {
 		return err
 	}
 
-	container.Properties.Image = imageName + ":" + version
+	deploymentScriptProperties.EnvironmentVariables = append(deploymentScriptProperties.EnvironmentVariables, environmentVariable)
 
 	return nil
 }
 
-// SetContainerEnvironmentVariable sets a environment variable for the container instance
-func (template *Template) SetContainerEnvironmentVariable(environmentVariable EnvironmentVariable) error {
-	container, err := findContainer(template)
+func findDeploymentsScript(template *Template) (*DeploymentScriptProperties, error) {
+	resource, err := template.FindResource(DeploymentScriptName)
 	if err != nil {
-		return err
+		return nil, errors.Wrap(err, "Failed to find deployment script resource")
 	}
 
-	container.Properties.EnvironmentVariables = append(container.Properties.EnvironmentVariables, environmentVariable)
+	if deploymentScriptProperties, ok := resource.Properties.(DeploymentScriptProperties); ok {
+		return &deploymentScriptProperties, nil
+	}
 
-	return nil
+	return nil, fmt.Errorf("Deployment Script not found in the template")
 }
 
-func findContainer(template *Template) (*Container, error) {
-	for i := range template.Resources {
-		resource := &template.Resources[i]
-		if resource.Name == ContainerGroupName {
-			if containerGroup, ok := resource.Properties.(ContainerGroupProperties); ok {
-				for j := range containerGroup.Containers {
-					container := &containerGroup.Containers[j]
-					if container.Name == ContainerName {
-						return container, nil
-					}
-				}
-			}
+func (t *Template) FindResource(resourceName string) (*Resource, error) {
+	for i := range t.Resources {
+		resource := &t.Resources[i]
+		if resource.Name == resourceName {
+			return resource, nil
 		}
 	}
 
-	return nil, fmt.Errorf("Container not found in the temaple")
+	return nil, fmt.Errorf("Deployment Script not found in the template")
 }

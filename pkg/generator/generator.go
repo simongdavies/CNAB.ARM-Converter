@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -8,7 +9,11 @@ import (
 	"sort"
 	"strings"
 
+	"get.porter.sh/porter/pkg/porter"
 	"github.com/cnabio/cnab-go/bundle"
+	"github.com/cnabio/cnab-to-oci/relocation"
+	"github.com/cnabio/cnab-to-oci/remotes"
+	"github.com/docker/cli/cli/config"
 	"github.com/docker/distribution/reference"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
@@ -16,19 +21,26 @@ import (
 
 // GenerateTemplateOptions is the set of options for configuring GenerateTemplate
 type GenerateTemplateOptions struct {
-	BundleLoc  string
-	OutputFile string
-	Overwrite  bool
-	Indent     bool
-	Version    string
-	Simplify   bool
+	BundleLoc         string
+	OutputFile        string
+	Overwrite         bool
+	Indent            bool
+	Version           string
+	Simplify          bool
+	BundlePullOptions *porter.BundlePullOptions
 }
 
 // GenerateTemplate generates ARM template from bundle metadata
 func GenerateTemplate(options GenerateTemplateOptions) error {
 
+	useTag := false
+
+	if options.BundlePullOptions.Tag != "" {
+		useTag = true
+	}
+
 	// TODO support http uri and registry based bundle
-	bundle, err := loadBundle(options.BundleLoc)
+	bundle, err := loadBundle(options.BundleLoc, useTag, options.BundlePullOptions)
 
 	if err != nil {
 		return err
@@ -39,9 +51,13 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 	}
 
 	bundleName := bundle.Name
-	bundleTag, err := getBundleTag(bundle)
-	if err != nil {
-		return err
+	bundleTag := options.BundlePullOptions.Tag
+	if !useTag {
+		var err error
+		bundleTag, err = getBundleTag(bundle)
+		if err != nil {
+			return err
+		}
 	}
 	bundleActions := make([]string, 0, len(bundle.Actions)+3)
 	defaultActions := []string{"install", "upgrade", "uninstall"}
@@ -50,13 +66,15 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		bundleActions = append(bundleActions, action)
 	}
 
-	generatedTemplate := template.NewCnabArmDriverTemplate(
+	generatedTemplate, err := template.NewCnabArmDriverTemplate(
 		bundleName,
 		bundleTag,
 		bundleActions,
-		template.CnabArmDriverImageName,
-		options.Version,
 		options.Simplify)
+
+	if err != nil {
+		return err
+	}
 
 	// Sort parameters, because Go randomizes order when iterating a map
 	var parameterKeys []string
@@ -83,7 +101,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 
 		var paramEnvVar template.EnvironmentVariable
 
-		if cnabParam, ok := isCnabParam(parameterKey, generatedTemplate); options.Simplify && ok {
+		if cnabParam, ok := isCnabParam(parameterKey, *generatedTemplate); options.Simplify && ok {
 			paramEnvVar = template.EnvironmentVariable{
 				Name:  common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
 				Value: fmt.Sprintf("[variables('%s')]", cnabParam),
@@ -172,7 +190,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 			}
 		}
 
-		if err = generatedTemplate.SetContainerEnvironmentVariable(paramEnvVar); err != nil {
+		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(paramEnvVar); err != nil {
 			return err
 		}
 	}
@@ -223,7 +241,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 
 		var credEnvVar template.EnvironmentVariable
 
-		if cnabParam, ok := isCnabParam(credentialKey, generatedTemplate); options.Simplify && ok {
+		if cnabParam, ok := isCnabParam(credentialKey, *generatedTemplate); options.Simplify && ok {
 			credEnvVar = template.EnvironmentVariable{
 				Name:        envVarName,
 				SecureValue: fmt.Sprintf("[variables('%s')]", cnabParam),
@@ -241,7 +259,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 			}
 		}
 
-		if err = generatedTemplate.SetContainerEnvironmentVariable(credEnvVar); err != nil {
+		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(credEnvVar); err != nil {
 			return err
 		}
 	}
@@ -274,7 +292,7 @@ func getBundleTag(bundle *bundle.Bundle) (string, error) {
 		if i.ImageType == "docker" {
 			ref, err := reference.ParseNamed(i.Image)
 			if err != nil {
-				return "", fmt.Errorf("Cannot parse invocationImage reference: %s", i.Image)
+				return "", fmt.Errorf("Cannot parse invocationImage reference: %s %w", i.Image, err)
 			}
 
 			bundleTag := ref.Name() + "/bundle"
@@ -320,14 +338,30 @@ func toARMType(jsonType string, isSensitive bool) (string, error) {
 	return armType, err
 }
 
-func loadBundle(source string) (*bundle.Bundle, error) {
-	_, err := os.Stat(source)
-	if err == nil {
-		jsonFile, _ := os.Open(source)
-		bundle, err := bundle.ParseReader(jsonFile)
-		return &bundle, err
+func loadBundle(source string, useTag bool, bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
+	// TODO deal with relocationMap
+	if useTag {
+		bun, _, err := pullBundle(bundleOptions.Tag, bundleOptions.InsecureRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to pull bundle with tag: %s. %w", bundleOptions.Tag, err)
+		}
+		return &bun, nil
 	}
-	return nil, err
+
+	return getBundleFromFile(source)
+}
+
+func getBundleFromFile(source string) (*bundle.Bundle, error) {
+	_, err := os.Stat(source)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to access bundle file: %s. %w", source, err)
+	}
+	jsonFile, _ := os.Open(source)
+	bun, err := bundle.ParseReader(jsonFile)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to parse bundle file: %s. %w", source, err)
+	}
+	return &bun, nil
 }
 
 func checkOutputFile(dest string, overwrite bool) error {
@@ -337,9 +371,32 @@ func checkOutputFile(dest string, overwrite bool) error {
 		}
 	} else {
 		if !os.IsNotExist(err) {
-			return err
+			return fmt.Errorf("unable to access output file: %s. %w", dest, err)
 		}
 	}
 
 	return nil
+}
+
+func pullBundle(tag string, insecureRegistry bool) (bundle.Bundle, *relocation.ImageRelocationMap, error) {
+	ref, err := reference.ParseNormalizedNamed(tag)
+	if err != nil {
+		return bundle.Bundle{}, nil, fmt.Errorf("Invalid bundle tag format, expected REGISTRY/name:tag %w", err)
+	}
+
+	var insecureRegistries []string
+	if insecureRegistry {
+		reg := reference.Domain(ref)
+		insecureRegistries = append(insecureRegistries, reg)
+	}
+
+	bun, reloMap, err := remotes.Pull(context.Background(), ref, remotes.CreateResolver(config.LoadDefaultConfigFile(os.Stderr), insecureRegistries...))
+	if err != nil {
+		return bundle.Bundle{}, nil, fmt.Errorf("Unable to pull remote bundle %w", err)
+	}
+
+	if len(reloMap) == 0 {
+		return *bun, nil, nil
+	}
+	return *bun, &reloMap, nil
 }

@@ -2,24 +2,37 @@ package template
 
 import (
 	"fmt"
-
-	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
-)
-
-const (
-	//CnabArmDriverImageName is the image name for the docker image that runs the ARM driver
-	CnabArmDriverImageName = "cnabquickstarts.azurecr.io/cnabarmdriver"
 )
 
 // NewCnabArmDriverTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions []string, containerImageName string, containerImageVersion string, simplify bool) Template {
+func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions []string, simplify bool) (*Template, error) {
 
 	resources := []Resource{
+		{
+			Type:       "Microsoft.ManagedIdentity/userAssignedIdentities",
+			Name:       "[variables('msiName')]",
+			APIVersion: "2018-11-30",
+			Location:   "[variables('location')]",
+		},
+		{
+			Type:       "Microsoft.Authorization/roleAssignments",
+			APIVersion: "2018-09-01-preview",
+			Name:       "[variables('roleAssignmentId')]",
+			DependsOn: []string{
+				"[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('msiName'))]",
+			},
+			Properties: RoleAssignment{
+				RoleDefinitionId: "[variables('contributorRoleDefinitionId')]",
+				PrincipalId:      "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msiName')), '2018-11-30').principalId]",
+				Scope:            "[resourceGroup().id]",
+				PrincipalType:    "ServicePrincipal",
+			},
+		},
 		{
 			Type:       "Microsoft.Storage/storageAccounts",
 			Name:       "[variables('cnab_azure_state_storage_account_name')]",
 			APIVersion: "2019-04-01",
-			Location:   "[variables('aci_location')]",
+			Location:   "[variables('location')]",
 			Sku: &Sku{
 				Name: "Standard_LRS",
 			},
@@ -39,7 +52,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 			Type:       "Microsoft.Storage/storageAccounts/blobServices/containers",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/porter')]",
 			APIVersion: "2019-04-01",
-			Location:   "[variables('aci_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -48,93 +61,94 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'))]",
 			APIVersion: "2019-04-01",
-			Location:   "[variables('aci_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
 		},
 		{
-			Name:       ContainerGroupName,
-			Type:       "Microsoft.ContainerInstance/containerGroups",
-			APIVersion: "2018-10-01",
-			Location:   "[variables('aci_location')]",
+			Type:       "Microsoft.Resources/deploymentScripts",
+			APIVersion: "2019-10-01-preview",
+			Name:       DeploymentScriptName,
+			Location:   "[variables('location')]",
 			DependsOn: []string{
+				"[variables('msiName')]",
 				"[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', variables('cnab_azure_state_storage_account_name'), 'default', variables('cnab_azure_state_fileshare'))]",
 			},
-			Properties: ContainerGroupProperties{
-				Containers: []Container{
+			Identity: &Identity{
+				Type: User,
+			},
+			Kind: "AzureCLI",
+			Properties: DeploymentScriptProperties{
+				RetentionInterval: "P1D",
+				StorageAccountSettings: StorageAccountSettings{
+					StorageAccountKey:  "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('cnab_azure_state_storage_account_name')), '2019-04-01').keys[0].value]",
+					StorageAccountName: "[variables('cnab_azure_state_storage_account_name')]",
+				},
+				ForceUpdateTag: "[parameters('deploymentTime')]",
+				AzCliVersion:   "2.9.1",
+				Timeout:        "PT5M",
+				EnvironmentVariables: []EnvironmentVariable{
 					{
-						Name: ContainerName,
-						Properties: ContainerProperties{
-							Resources: Resources{
-								Requests: Requests{
-									CPU:        "1.0",
-									MemoryInGb: "1.5",
-								},
-							},
-							EnvironmentVariables: []EnvironmentVariable{
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAction,
-									Value: "[variables('cnab_action')]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabInstallationName,
-									Value: "[variables('cnab_installation_name')]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAzureLocation,
-									Value: "[variables('cnab_azure_location')]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAzureClientID,
-									Value: "[variables('cnab_azure_client_id')]",
-								},
-								{
-									Name:        common.GetEnvironmentVariableNames().CnabAzureClientSecret,
-									SecureValue: "[variables('cnab_azure_client_secret')]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAzureSubscriptionID,
-									Value: "[variables('cnab_azure_subscription_id')]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAzureTenantID,
-									Value: "[variables('cnab_azure_tenant_id')]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAzureStateStorageAccountName,
-									Value: "[variables('cnab_azure_state_storage_account_name')]",
-								},
-								{
-									Name:        common.GetEnvironmentVariableNames().CnabAzureStateStorageAccountKey,
-									SecureValue: "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('cnab_azure_state_storage_account_name')), '2019-04-01').keys[0].value]",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabAzureStateFileshare,
-									Value: "[variables('cnab_azure_state_fileshare')]",
-								},
-								{
-									Name:  "VERBOSE",
-									Value: "false",
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabBundleName,
-									Value: bundleName,
-								},
-								{
-									Name:  common.GetEnvironmentVariableNames().CnabBundleTag,
-									Value: bundleTag,
-								},
-								{
-									Name:        "AZURE_STORAGE_CONNECTION_STRING",
-									SecureValue: "[concat('AccountName=', variables('cnab_azure_state_storage_account_name'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('cnab_azure_state_storage_account_name')), '2019-04-01').keys[0].value)]",
-								},
-							},
-						},
+						Name:  "CNAB_AZURE_LOCATION",
+						Value: "[resourceGroup().location]",
+					},
+					{
+						Name:  "CNAB_AZURE_RESOURCE_GROUP",
+						Value: "[resourceGroup().name]",
+					},
+					{
+						Name:  "CNAB_AZURE_SUBSCRIPTION_ID",
+						Value: "[subscription().subscriptionId]",
+					},
+					{
+						Name:  "CNAB_AZURE_VERBOSE",
+						Value: "false",
+					},
+					{
+						Name:  "CNAB_AZURE_MSI_TYPE",
+						Value: "user",
+					},
+					{
+						Name:  "CNAB_AZURE_USER_MSI_RESOURCE_ID",
+						Value: "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msiName'))]",
+					},
+					{
+						Name:  "CNAB_AZURE_STATE_STORAGE_ACCOUNT_NAME",
+						Value: "[variables('cnab_azure_state_storage_account_name')]",
+					},
+					{
+						Name:        "CNAB_AZURE_STATE_STORAGE_ACCOUNT_KEY",
+						SecureValue: "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('cnab_azure_state_storage_account_name')), '2019-04-01').keys[0].value]",
+					},
+					{
+						Name:  "CNAB_AZURE_STATE_FILESHARE",
+						Value: "[variables('cnab_azure_state_fileshare')]",
+					},
+					{
+						Name:  "CNAB_AZURE_DELETE_OUTPUTS_FROM_FILESHARE",
+						Value: "true",
 					},
 				},
-				OsType:        "Linux",
-				RestartPolicy: "Never",
+				Arguments: "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msiName'))]",
+				ScriptContent: `
+          STDERR=$(mktemp)
+          STDOUT=$(mktemp)
+          exec > $STDOUT
+          exec 2> $STDERR
+          echo Installing Porter
+          curl https://cdn.deislabs.io/porter/latest/install-linux.sh|/bin/bash
+          export PATH=\"${HOME}/.porter:${PATH}\"
+          echo Installed  $(${HOME}/.porter/porter version)
+          echo Installing CNAB azure driver
+          DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/deislabs/cnab-azure-driver/releases/latest | jq '.assets[]|select(.name==\"cnab-azure-linux-amd64\").browser_download_url' -r)
+          mkdir -p ${HOME}/.cnab-azure-driver
+          curl -sSLo ${HOME}/.cnab-azure-driver/cnab-azure ${DOWNLOAD_LOCATION}
+          chmod +x ${HOME}/.cnab-azure-driver/cnab-azure
+          export PATH=${HOME}/.cnab-azure-driver:${PATH}
+          echo Installed  $(${HOME}/.cnab-azure-driver/cnab-azure version)
+          porter install test --tag deislabs/porter-example-exec-outputs-bundle:0.1.0 -d azure
+          jq -n --arg stdout \"$(cat $STDOUT)\" --arg stderr  \"$(cat $STDERR)\" '{\"stdout\":$stdout,\"stderr\": $stderr}' > $AZ_SCRIPTS_OUTPUT_PATH`,
 			},
 		},
 	}
@@ -146,18 +160,6 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 			AllowedValues: bundleActions,
 			Metadata: &Metadata{
 				Description: "The name of the action to be performed on the application instance.",
-			},
-		},
-		"cnab_azure_client_id": {
-			Type: "string",
-			Metadata: &Metadata{
-				Description: "AAD Client ID for Azure account authentication - used to authenticate to Azure using Service Principal for ACI creation.",
-			},
-		},
-		"cnab_azure_client_secret": {
-			Type: "securestring",
-			Metadata: &Metadata{
-				Description: "AAD Client Secret for Azure account authentication - used to authenticate to Azure using Service Principal for ACI creation.",
 			},
 		},
 	}
@@ -292,7 +294,14 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 		Outputs:        output,
 	}
 
-	_ = template.setContainerImage(containerImageName, containerImageVersion)
+	resource, err := template.FindResource(DeploymentScriptName)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to find deployment script resource: %w", err)
+	}
+
+	userIdentity := make(map[string]interface{}, 1)
+	userIdentity["resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msiName'))]"] = nil
+	resource.Identity.UserAssignedIdentities = userIdentity
 
 	if simplify {
 		template.addSimpleVariables(bundleName, bundleTag)
@@ -300,22 +309,18 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 		template.addAdvancedVariables()
 	}
 
-	return template
+	return &template, nil
 }
 
 func (template *Template) addAdvancedVariables() {
 	variables := map[string]string{
 		"cnab_action":                           "[parameters('cnab_action')]",
-		"cnab_azure_client_id":                  "[parameters('cnab_azure_client_id')]",
-		"cnab_azure_client_secret":              "[parameters('cnab_azure_client_secret')]",
 		"cnab_azure_location":                   "[parameters('cnab_azure_location')]",
 		"cnab_azure_subscription_id":            "[parameters('cnab_azure_subscription_id')]",
 		"cnab_azure_tenant_id":                  "[parameters('cnab_azure_tenant_id')]",
 		"cnab_installation_name":                "[parameters('cnab_installation_name')]",
 		"cnab_azure_state_fileshare":            "[parameters('cnab_azure_state_fileshare')]",
 		"cnab_azure_state_storage_account_name": "[parameters('cnab_azure_state_storage_account_name')]",
-		"containerGroupName":                    "[parameters('containerGroupName')]",
-		"containerName":                         "[parameters('containerName')]",
 		"aci_location":                          "[parameters('aci_location')]",
 	}
 
