@@ -60,8 +60,8 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 	}
 	bundleActions := make([]string, 0, len(bundle.Actions)+3)
-	defaultActions := []string{"install", "upgrade", "uninstall"}
-	bundleActions = append(bundleActions, defaultActions...)
+
+	bundleActions = append(bundleActions, template.DefaultCNABActions...)
 	for action := range bundle.Actions {
 		bundleActions = append(bundleActions, action)
 	}

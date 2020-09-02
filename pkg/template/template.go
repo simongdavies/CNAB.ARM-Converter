@@ -8,17 +8,17 @@ import (
 
 const (
 	//DeploymentScriptName is the value of the ContainerGroup Resource Name property in the generated template
-	DeploymentScriptName = "runPorter"
+	DeploymentScriptName = "[variables('deploymentScriptResourceName')]"
 )
 
 // Template defines an ARM Template that can run a CNAB Bundle
 type Template struct {
-	Schema         string               `json:"$schema"`
-	ContentVersion string               `json:"contentVersion"`
-	Parameters     map[string]Parameter `json:"parameters"`
-	Variables      map[string]string    `json:"variables"`
-	Resources      []Resource           `json:"resources"`
-	Outputs        Outputs              `json:"outputs"`
+	Schema         string                 `json:"$schema"`
+	ContentVersion string                 `json:"contentVersion"`
+	Parameters     map[string]Parameter   `json:"parameters"`
+	Variables      map[string]interface{} `json:"variables"`
+	Resources      []Resource             `json:"resources"`
+	Outputs        Outputs                `json:"outputs"`
 }
 
 // Metadata defines the metadata for a template parameter
@@ -75,6 +75,7 @@ type DeploymentScriptProperties struct {
 	ScriptContent          string                 `json:"scriptContent"`
 	EnvironmentVariables   []EnvironmentVariable  `json:"environmentVariables"`
 	StorageAccountSettings StorageAccountSettings `json:"storageAccountSettings"`
+	CleanupPreference      string                 `json:"cleanupPreference"`
 }
 
 // StorageAccountSettings defines the storage account settings for the storage account settings property of the deployment script in the generated template
@@ -101,13 +102,13 @@ type Resource struct {
 	Sku        *Sku        `json:"sku,omitempty"`
 	Kind       string      `json:"kind,omitempty"`
 	DependsOn  []string    `json:"dependsOn,omitempty"`
-	Properties interface{} `json:"properties"`
 	Identity   *Identity   `json:"identity,omitempty"`
+	Properties interface{} `json:"properties"`
 }
 
 // Identity defines managed identity
 type Identity struct {
-	Type                   IdentityType `json:"type"`
+	Type                   string `json:"type"`
 	UserAssignedIdentities map[string]interface{}
 }
 
@@ -117,7 +118,12 @@ type IdentityType int
 const (
 	System IdentityType = iota
 	User
+	None
 )
+
+func (i IdentityType) String() string {
+	return [...]string{"SystemAssigned", "UserAssigned", "None"}[i]
+}
 
 // RoleAssignment defines a role assignment in the generated template
 type RoleAssignment struct {
@@ -134,9 +140,7 @@ type Output struct {
 }
 
 // Outputs defines the outputs in the genreted template
-type Outputs struct {
-	CNABPackageActionLogsCommand Output `json:"CNAB Package Action Logs Command"`
-}
+type Outputs map[string]Output
 
 // SetDeploymentScriptEnvironmentVariable sets an environment variable for the deployment script
 func (template *Template) SetDeploymentScriptEnvironmentVariable(environmentVariable EnvironmentVariable) error {
