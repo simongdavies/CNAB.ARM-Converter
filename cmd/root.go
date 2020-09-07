@@ -26,9 +26,9 @@ var versionCmd = &cobra.Command{
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "generate",
+	Use:   "cnabtoarmtemplate",
 	Short: "Generates an ARM template for executing a CNAB package using Azure driver",
-	Long:  `Generates an ARM template which can be used to execute Porter in a container using ACI to perform actions on a CNAB Package, which in turn executes the CNAB Actions using the CNAB Azure Driver   `,
+	Long:  `Generates an ARM template which can be used to execute Porter in a deployment script, which in turn executes the CNAB Actions using the CNAB Azure Driver   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 

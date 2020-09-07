@@ -103,7 +103,7 @@ type Resource struct {
 	Kind       string      `json:"kind,omitempty"`
 	DependsOn  []string    `json:"dependsOn,omitempty"`
 	Identity   *Identity   `json:"identity,omitempty"`
-	Properties interface{} `json:"properties"`
+	Properties interface{} `json:"properties,omitempty"`
 }
 
 // Identity defines managed identity
@@ -144,27 +144,21 @@ type Outputs map[string]Output
 
 // SetDeploymentScriptEnvironmentVariable sets an environment variable for the deployment script
 func (template *Template) SetDeploymentScriptEnvironmentVariable(environmentVariable EnvironmentVariable) error {
-	deploymentScriptProperties, err := findDeploymentsScript(template)
+	deploymentScript, err := template.FindResource(DeploymentScriptName)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Failed to find deployment script resource")
+	}
+
+	deploymentScriptProperties, ok := deploymentScript.Properties.(DeploymentScriptProperties)
+
+	if !ok {
+		return errors.New("Failed to get deployment script resource properties")
 	}
 
 	deploymentScriptProperties.EnvironmentVariables = append(deploymentScriptProperties.EnvironmentVariables, environmentVariable)
+	deploymentScript.Properties = deploymentScriptProperties
 
 	return nil
-}
-
-func findDeploymentsScript(template *Template) (*DeploymentScriptProperties, error) {
-	resource, err := template.FindResource(DeploymentScriptName)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to find deployment script resource")
-	}
-
-	if deploymentScriptProperties, ok := resource.Properties.(DeploymentScriptProperties); ok {
-		return &deploymentScriptProperties, nil
-	}
-
-	return nil, fmt.Errorf("Deployment Script not found in the template")
 }
 
 func (t *Template) FindResource(resourceName string) (*Resource, error) {

@@ -1,5 +1,5 @@
 PROJECT         := CNAB.ARM-Converter
-FILENAME        := cnabarmdriver
+FILENAME        := cnabtoarmtemplate
 ORG             := simongdavies
 BINDIR          := $(CURDIR)/bin
 GOFLAGS         :=

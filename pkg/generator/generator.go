@@ -59,17 +59,11 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 			return err
 		}
 	}
-	bundleActions := make([]string, 0, len(bundle.Actions)+3)
-
-	bundleActions = append(bundleActions, template.DefaultCNABActions...)
-	for action := range bundle.Actions {
-		bundleActions = append(bundleActions, action)
-	}
 
 	generatedTemplate, err := template.NewCnabArmDriverTemplate(
 		bundleName,
 		bundleTag,
-		bundleActions,
+		bundle.Outputs,
 		options.Simplify)
 
 	if err != nil {
@@ -107,6 +101,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 				Value: fmt.Sprintf("[variables('%s')]", cnabParam),
 			}
 		} else {
+
 			var metadata template.Metadata
 			if definition.Description != "" {
 				metadata = template.Metadata{
@@ -185,9 +180,15 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 			}
 
 			paramEnvVar = template.EnvironmentVariable{
-				Name:  common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
-				Value: fmt.Sprintf("[parameters('%s')]", parameterKey),
+				Name: common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
 			}
+
+			if isSensitive {
+				paramEnvVar.SecureValue = fmt.Sprintf("[parameters('%s')]", parameterKey)
+			} else {
+				paramEnvVar.Value = fmt.Sprintf("[parameters('%s')]", parameterKey)
+			}
+
 		}
 
 		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(paramEnvVar); err != nil {

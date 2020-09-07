@@ -3,23 +3,12 @@ package template
 import (
 	"fmt"
 	"strings"
+
+	"github.com/cnabio/cnab-go/bundle"
 )
 
-// DefaultCNABActions are the default actions for a CNAB Bundle
-var DefaultCNABActions = []string{"install", "upgrade", "uninstall"}
-
-// IsDefaultAction checks if an bundle action is a default or custom action
-func IsDefaultAction(action string) bool {
-	for _, a := range DefaultCNABActions {
-		if action == a {
-			return true
-		}
-	}
-	return false
-}
-
 // NewCnabArmDriverTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions []string, simplify bool) (*Template, error) {
+func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[string]bundle.Output, simplify bool) (*Template, error) {
 
 	resources := []Resource{
 		{
@@ -45,8 +34,8 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 		{
 			Type:       "Microsoft.Storage/storageAccounts",
 			Name:       "[variables('cnab_azure_state_storage_account_name')]",
-			APIVersion: "2019-04-01",
-			Location:   "[variables('location')]",
+			APIVersion: "2019-06-01",
+			Location:   "[variables('storage_location')]",
 			Sku: &Sku{
 				Name: "Standard_LRS",
 			},
@@ -68,8 +57,8 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 		{
 			Type:       "Microsoft.Storage/storageAccounts/blobServices/containers",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/porter')]",
-			APIVersion: "2019-04-01",
-			Location:   "[variables('location')]",
+			APIVersion: "2019-06-01",
+			Location:   "[variables('storage_location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -77,8 +66,8 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 		{
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'))]",
-			APIVersion: "2019-04-01",
-			Location:   "[variables('location')]",
+			APIVersion: "2019-06-01",
+			Location:   "[variables('storage_location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -108,12 +97,8 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 				Timeout:        "PT5M",
 				EnvironmentVariables: []EnvironmentVariable{
 					{
-						Name:  "CNAB_ACTION",
-						Value: "[parameters('cnab_action')]",
-					},
-					{
 						Name:  "CNAB_INSTALLATION_NAME",
-						Value: "[variables('cnab_installation_name')]",
+						Value: "[parameters('cnab_installation_name')]",
 					},
 					{
 						Name:  "CNAB_AZURE_LOCATION",
@@ -155,29 +140,32 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 						Name:  "CNAB_AZURE_DELETE_OUTPUTS_FROM_FILESHARE",
 						Value: "[variables('cnab_delete_outputs_from_fileshare')]",
 					},
+					{
+						Name:        "AZURE_STORAGE_CONNECTION_STRING",
+						SecureValue: "[format('AccountName={0};AccountKey={1}', variables('cnab_azure_state_storage_account_name'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('cnab_azure_state_storage_account_name')), '2019-06-01').keys[0].value)]",
+					},
 				},
-				Arguments:     "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msi_name'))]",
+				Arguments:     "[format('{0} {1}',variables('porter_version'),parameters('cnab_installation_name'))]",
 				ScriptContent: createScript(bundleTag),
 			},
 		},
 	}
 
 	parameters := map[string]Parameter{
-		"cnab_action": {
-			Type:          "string",
-			DefaultValue:  bundleActions[0],
-			AllowedValues: bundleActions,
+		"deploymentTime": {
+			Type:         "string",
+			DefaultValue: "[utcNow()]",
 			Metadata: &Metadata{
-				Description: "The name of the action to be performed on the bundle instance.",
+				Description: "The time of the delpoyment, used to force the script to run again",
 			},
 		},
 	}
 
-	parameters["deploymentTime"] = Parameter{
+	parameters["cnab_installation_name"] = Parameter{
 		Type:         "string",
-		DefaultValue: "[utcNow()]",
+		DefaultValue: bundleName,
 		Metadata: &Metadata{
-			Description: "The time of the delpoyment, used to force the script to run again",
+			Description: "The name of the installation.",
 		},
 	}
 
@@ -204,6 +192,9 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 				"eastasia",
 				"canadacentral",
 				"japaneast",
+				"francecentral",
+				"brazilsouth",
+				"koreacentral",
 			},
 			Metadata: &Metadata{
 				Description: "The location in which the resources will be created.",
@@ -228,14 +219,6 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 			DefaultValue: "[subscription().subscriptionId]",
 			Metadata: &Metadata{
 				Description: "Azure Subscription Id - this is the subscription to be used for ACI creation, if not specified the first (random) subscription is used.",
-			},
-		}
-
-		parameters["cnab_installation_name"] = Parameter{
-			Type:         "string",
-			DefaultValue: bundleName,
-			Metadata: &Metadata{
-				Description: "The name of the application instance.",
 			},
 		}
 
@@ -295,21 +278,28 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, bundleActions
 			DefaultValue: "cnabinstall",
 		}
 
+		parameters["porter_version"] = Parameter{
+			Type:         "string",
+			DefaultValue: "latest",
+			Metadata: &Metadata{
+				Description: "The version of porter to use",
+			},
+		}
 	}
 
-	// output := Outputs{
-	// 	Output{
-	// 		Type:  "string",
-	// 		Value: "[concat('az container logs -g ',resourceGroup().name,' -n ',variables('containerGroupName'),'  --container-name ',variables('containerName'), ' --follow')]",
-	// 	},
-	// }
+	output := map[string]Output{
+		"BundleOutput": {
+			Type:  "array",
+			Value: "[reference(resourceId('Microsoft.Resources/deploymentScripts',variables('deploymentScriptResourceName')), '2019-10-01-preview').Outputs.BundleOutputs]",
+		},
+	}
 
 	template := Template{
-		Schema:         "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+		Schema:         "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
 		ContentVersion: "1.0.0.0",
 		Resources:      resources,
 		Parameters:     parameters,
-		Outputs:        Outputs{},
+		Outputs:        output,
 	}
 
 	resource, err := template.FindResource(DeploymentScriptName)
@@ -334,7 +324,6 @@ func (template *Template) addAdvancedVariables() {
 	variables := map[string]interface{}{
 		"cnab_resource_group":                   "[parameters('cnab_resource_group')]",
 		"cnab_azure_subscription_id":            "[parameters('cnab_azure_subscription_id')]",
-		"cnab_installation_name":                "[parameters('cnab_installation_name')]",
 		"cnab_azure_state_fileshare":            "[parameters('cnab_azure_state_fileshare')]",
 		"cnab_azure_state_storage_account_name": "[parameters('cnab_azure_state_storage_account_name')]",
 		"location":                              "[parameters('location')]",
@@ -345,7 +334,9 @@ func (template *Template) addAdvancedVariables() {
 		"roleAssignmentId":                      "[guid(concat(resourceGroup().id,parameters('msi_name'), 'contributor'))]",
 		"deploymentScriptResourceName":          "[parameters('deploymentScriptResourceName')]",
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-		"default_actions":                       []string{"install", "uninstall", "upgrade"},
+		"porter_version":                        "[parameters('porter_version')]",
+		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
+		"storage_location": "canadacentral",
 	}
 
 	template.Variables = variables
@@ -355,61 +346,66 @@ func (template *Template) addSimpleVariables(bundleName string, bundleTag string
 	variables := map[string]interface{}{
 		"cnab_resource_group":                   "[resourceGroup().name]",
 		"cnab_azure_subscription_id":            "[subscription().subscriptionId]",
-		"cnab_installation_name":                bundleName,
 		"cnab_azure_state_fileshare":            fmt.Sprintf("[guid('%s')]", bundleName),
 		"cnab_azure_state_storage_account_name": "[concat('cnabstate',uniqueString(resourceGroup().id))]",
 		"location":                              "[resourceGroup().location]",
-		"cleanup":                               "always",
+		"cleanup":                               "Always",
 		"cnab_azure_verbose":                    "false",
 		"cnab_delete_outputs_from_fileshare":    "true",
 		"msi_name":                              "cnabinstall",
 		"roleAssignmentId":                      "[guid(concat(resourceGroup().id,variables('msi_name'), 'contributor'))]",
 		"deploymentScriptResourceName":          fmt.Sprintf("[concat('cnab-',uniqueString(resourceGroup().id, '%s'))]", bundleName),
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-		"default_actions":                       []string{"install", "uninstall", "upgrade"},
+		"porter_version":                        "latest",
+		"storage_location":                      "canadacentral",
 	}
 
 	template.Variables = variables
 }
 
 func createScript(tag string) string {
-	scriptPrefix := "[format('"
-	scriptSuffix := "',if(contains(variables('default_actions'),tolower(parameters('cnab_action'))),parameters('cnab_action'),'invoke'),variables('cnab_installation_name'),if(contains(variables('default_actions'),tolower(parameters('cnab_action'))),'',format('--action {0}',parameters('cnab_action'))))]"
+	//TODO allow version specification for azure driver and plugin
+	//TODO remove storage migrate
 	installsteps := []string{
-		"STDERR=$(mktemp)",
-		"STDOUT=$(mktemp)",
-		"exec > $STDOUT",
-		"exec 2> $STDERR",
-		"set -euo pipefail",
-		"echo Installing Porter",
-		"curl https://cdn.deislabs.io/porter/latest/install-linux.sh|/bin/bash",
-		"export PATH=\"$HOME/.porter:$PATH\"",
-		"echo Installed  $($HOME/.porter/porter version)",
-		"echo Installing CNAB azure driver",
-		"DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/deislabs/cnab-azure-driver/releases/latest | jq ''.assets[]|select(.name==\"cnab-azure-linux-amd64\").browser_download_url'' -r)",
-		"mkdir -p $HOME/.cnab-azure-driver",
-		"curl -sSLo $HOME/.cnab-azure-driver/cnab-azure $DOWNLOAD_LOCATION",
-		"chmod +x $HOME/.cnab-azure-driver/cnab-azure",
-		"export PATH=$HOME/.cnab-azure-driver:$PATH",
-		"echo Installed  $($HOME/.cnab-azure-driver/cnab-azure version)"}
-	portercmdBuilder := strings.Builder{}
-	portercmdBuilder.WriteString("porter bundle {0} ")
-	portercmdBuilder.WriteString("{1} ")
-	portercmdBuilder.WriteString("{2} ")
-	// if !IsDefaultAction(action) {
-	// 	portercmdBuilder.WriteString(fmt.Sprintf("--action %s ", action))
-	// }
-	portercmdBuilder.WriteString(fmt.Sprintf("--tag %s -d azure ", tag))
-	//portercmd := fmt.Sprintf("porter bundle install test --tag %s -d azure", tag)
-	outputcmd := "jq -n --arg stdout \"$(cat $STDOUT)\" --arg stderr  \"$(cat $STDERR)\" ''{{\"stdout\":$stdout,\"stderr\": $stderr}}'' > $AZ_SCRIPTS_OUTPUT_PATH"
+		"set -euxo pipefail",
+		"PORTER_HOME=${HOME}/.porter",
+		"PORTER_URL=https://cdn.porter.sh",
+		"PORTER_VERSION=${1}",
+		"mkdir -p ${PORTER_HOME}",
+		"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_URL}/${PORTER_VERSION}/porter-linux-amd64",
+		"chmod +x ${PORTER_HOME}/porter",
+		"export PATH=\"${PORTER_HOME}:${PATH}\"",
+		"${PORTER_HOME}/porter plugin install azure --version $PORTER_VERSION",
+		"echo 'default-storage-plugin = \"azure.blob\"' > ${PORTER_HOME}/config.toml",
+		"cat ${PORTER_HOME}/config.toml",
+		"DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/deislabs/cnab-azure-driver/releases/latest | jq '.assets[]|select(.name==\"cnab-azure-linux-amd64\").browser_download_url' -r)",
+		"mkdir -p ${HOME}/.cnab-azure-driver",
+		"curl -sSLo ${HOME}/.cnab-azure-driver/cnab-azure ${DOWNLOAD_LOCATION}",
+		"chmod +x ${HOME}/.cnab-azure-driver/cnab-azure",
+		"export PATH=${HOME}/.cnab-azure-driver:${PATH}",
+		"porter storage migrate",
+		"set +e",
+		"INSTANCE=$(${HOME}/.porter/porter show \"${2}\" -o json)",
+		"set -e",
+		"ACTION='upgrade'",
+		//TODO if the bundle exists then check that the installation is for the same bundle type
+		"if [[ -z ${INSTANCE} ]]; then ACTION='install'; fi",
+		"export CNAB_ACTION=${ACTION}",
+		"PARAMS=",
+		"CREDS=",
+		"SUFFIX=",
+		"for env_var in ${!CNAB_PARAM_@};do NAME=${env_var#CNAB_PARAM_};PARAMS=$(echo ${PARAMS} --param ${NAME}=\"'${!env_var}'\"); done",
+		"for env_var in ${!CNAB_CRED_FILE@};do NAME=${env_var#CNAB_CRED_FILE_};echo ${!env_var}|base64 -d > /tmp/${NAME}; done",
+		"if [[  ! -z  ${!CNAB_CRED_@} ]];then CREDSFILE=$(mktemp);CREDS=\" --cred ${CREDSFILE}\";echo {\\\"Name\\\": \\\"${2}\\\" , > ${CREDSFILE};echo \\\"Credentials\\\":[ >> ${CREDSFILE}; for env_var in ${!CNAB_CRED_@};do NAME=${env_var#CNAB_CRED_};echo ${SUFFIX};if [[ ${NAME} = FILE_* ]];then NAME=${NAME#FILE_};fi;echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${CREDSFILE};echo \\\"Source\\\": { >> ${CREDSFILE};if [[ ${env_var} = CNAB_CRED_FILE_* ]];then echo \\\"Path\\\": \\\"/tmp/${NAME}\\\" >> ${CREDSFILE};else echo \\\"EnvVar\\\": \\\"${env_var}\\\" >> ${CREDSFILE};fi; echo }} >> ${CREDSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done;echo ]} >> ${CREDSFILE};fi",
+		"cat ${CREDSFILE}",
+		fmt.Sprintf("porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --tag %s -d azure", tag),
+		"OUTPUTS=$(porter inst outputs list -i \"${2}\" -o json)",
+		"if [[ -z ${OUTPUTS} ]]; then echo []|jq '{BundleOutputs: .}';  else echo $OUTPUTS|jq '{BundleOutputs: .}' > ${AZ_SCRIPTS_OUTPUT_PATH}; fi"}
 
 	builder := strings.Builder{}
-	builder.WriteString(scriptPrefix)
 	for _, cmd := range installsteps {
 		builder.WriteString(fmt.Sprintf("%s;", cmd))
 	}
-	builder.WriteString(fmt.Sprintf("%s;", portercmdBuilder.String()))
-	builder.WriteString(fmt.Sprintf("%s;", outputcmd))
-	builder.WriteString(scriptSuffix)
+
 	return builder.String()
 }
