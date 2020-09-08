@@ -18,7 +18,10 @@ require (
 	github.com/cnabio/cnab-to-oci v0.3.1-beta1
 	github.com/docker/cli v0.0.0-20191017083524-a8ff7f821017
 	github.com/docker/distribution v2.7.1+incompatible
+	github.com/go-chi/chi v4.1.2+incompatible
+	github.com/go-chi/render v1.0.1
 	github.com/pkg/errors v0.9.1
+	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	gotest.tools v2.2.0+incompatible
 )

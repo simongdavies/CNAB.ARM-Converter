@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -22,10 +22,8 @@ import (
 // GenerateTemplateOptions is the set of options for configuring GenerateTemplate
 type GenerateTemplateOptions struct {
 	BundleLoc         string
-	OutputFile        string
-	Overwrite         bool
+	Writer            io.Writer
 	Indent            bool
-	Version           string
 	Simplify          bool
 	BundlePullOptions *porter.BundlePullOptions
 }
@@ -43,10 +41,6 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 	bundle, err := loadBundle(options.BundleLoc, useTag, options.BundlePullOptions)
 
 	if err != nil {
-		return err
-	}
-
-	if err = checkOutputFile(options.OutputFile, options.Overwrite); err != nil {
 		return err
 	}
 
@@ -272,8 +266,8 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		data, _ = json.Marshal(generatedTemplate)
 	}
 
-	if err := ioutil.WriteFile(options.OutputFile, data, 0644); err != nil {
-		return err
+	if _, err = options.Writer.Write(data); err != nil {
+		return fmt.Errorf("Error writing template: %w", err)
 	}
 
 	return nil
@@ -363,20 +357,6 @@ func getBundleFromFile(source string) (*bundle.Bundle, error) {
 		return nil, fmt.Errorf("Unable to parse bundle file: %s. %w", source, err)
 	}
 	return &bun, nil
-}
-
-func checkOutputFile(dest string, overwrite bool) error {
-	if _, err := os.Stat(dest); err == nil {
-		if !overwrite {
-			return fmt.Errorf("File %s exists and overwrite not specified", dest)
-		}
-	} else {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("unable to access output file: %s. %w", dest, err)
-		}
-	}
-
-	return nil
 }
 
 func pullBundle(tag string, insecureRegistry bool) (bundle.Bundle, *relocation.ImageRelocationMap, error) {

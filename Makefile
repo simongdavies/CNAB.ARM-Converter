@@ -5,6 +5,13 @@ BINDIR          := $(CURDIR)/bin
 GOFLAGS         :=
 LDFLAGS         := -w -s
 TESTFLAGS       := -v
+REGISTRY 				:= cnabquickstarts
+IMAGE           := $(REGISTRY).azurecr.io/$(FILENAME)
+GROUP 					:= template_generator
+LOCATION				:= northeurope
+KV							:= sdkv
+SSLCERT					:= cnab-arm-ssl-cert
+SSLKEY					:= cnab-arm-ssl-key
 GO = GO111MODULE=on go
 COMMIT ?= $(shell git rev-parse --short HEAD)
 
@@ -22,8 +29,30 @@ GIT_TAG   := $(shell git describe --tags --always)
 VERSION   ?= ${GIT_TAG}
 LDFLAGS   += -X  github.com/$(ORG)/$(PROJECT)/pkg.Version=$(VERSION) -X github.com/$(ORG)/$(PROJECT)/pkg.Commit=$(COMMIT)
 
+.PHONY: deploy
+deploy: publish
+	az group create -n  $(GROUP) -l $(LOCATION); \
+	NGINXCONF=$$(cat deploy/nginx.conf|base64 -w 0); \
+	SSLKEY=$$(az keyvault secret show --name $(SSLKEY) --vault-name $(KV) --output tsv --query 'value'); \
+	SSLCERT=$$(az keyvault secret show --name $(SSLCERT) --vault-name $(KV) --output tsv --query 'value'); \
+	az deployment group create -g $(GROUP) --template-file deploy/azuredeploy.json --param image=$(IMAGE):$(VERSION)-$(COMMIT) --param nginx-conf=$$NGINXCONF --param ssl-key=$$SSLKEY --param ssl-crt=$$SSLCERT
+
 .PHONY: default
 default: build
+
+.PHONY: publish
+publish: build docker_build docker_tag docker_push
+
+docker_build:
+	docker build -t $(IMAGE):$(VERSION)-$(COMMIT) .
+
+docker_tag:
+	docker tag $(IMAGE):$(VERSION)-$(COMMIT) $(IMAGE):latest
+
+docker_push:
+	az acr login -n $(REGISTRY)
+	docker push $(IMAGE):$(VERSION)-$(COMMIT)
+	docker push $(IMAGE):latest
 
 .PHONY: build
 build:

@@ -19,9 +19,17 @@ var opts porter.BundlePullOptions
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the cnabarmdriver version",
+	Short: "Print the cnabtoarmtemplate version",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("cnabarmdriver-%v \n", Version())
+		fmt.Printf("cnabtoarmtemplate-%v \n", Version())
+	},
+}
+
+var listenCmd = &cobra.Command{
+	Use:   "listen",
+	Short: "Starts an http server to listen for request for template generation",
+	Run: func(cmd *cobra.Command, args []string) {
+		Listen()
 	},
 }
 
@@ -32,12 +40,22 @@ var rootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
+		if err := checkOutputFile(outputloc, overwrite); err != nil {
+			return err
+		}
+
+		file, err := os.OpenFile(outputloc, os.O_RDWR|os.O_CREATE, 0644)
+
+		if err != nil {
+			return fmt.Errorf("Error opening output file: %w", err)
+		}
+
+		defer file.Close()
+
 		options := generator.GenerateTemplateOptions{
 			BundleLoc:         fileloc,
 			Indent:            indent,
-			OutputFile:        outputloc,
-			Overwrite:         overwrite,
-			Version:           Version(),
+			Writer:            file,
 			Simplify:          simplify,
 			BundlePullOptions: &opts,
 		}
@@ -56,6 +74,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&opts.Force, "force", false, "Force a fresh pull of the bundle")
 	rootCmd.Flags().BoolVar(&opts.InsecureRegistry, "insecure-registry", false, "Don't require TLS for the registry")
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(listenCmd)
 }
 
 // Execute runs the template generator
@@ -68,4 +87,18 @@ func Execute() {
 // Version returns the version string
 func Version() string {
 	return fmt.Sprintf("%v-%v", pkg.Version, pkg.Commit)
+}
+
+func checkOutputFile(dest string, overwrite bool) error {
+	if _, err := os.Stat(dest); err == nil {
+		if !overwrite {
+			return fmt.Errorf("File %s exists and overwrite not specified", dest)
+		}
+	} else {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("unable to access output file: %s. %w", dest, err)
+		}
+	}
+
+	return nil
 }

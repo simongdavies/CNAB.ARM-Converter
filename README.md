@@ -1,4 +1,4 @@
-# cnab-arm-driver
+# cnab-arm-template-generator
 
 Tool for generating ARM template from a CNAB bundle.
 
@@ -17,6 +17,12 @@ Generating the ARM template
 ```shell
 Usage:
   cnabtoarmtemplate [flags]
+  cnabtoarmtemplate [command]
+
+Available Commands:
+  help        Help about any command
+  listen      Starts an http server to listen for requests for template generation
+  version     Print the cnabtoarmtemplate version
 
 Flags:
   -b, --bundle string   name of bundle file to generate template for, default is bundle.json in the current directory 

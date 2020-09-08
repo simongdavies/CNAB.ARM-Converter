@@ -16,15 +16,21 @@ func TestGenerateTemplate(t *testing.T) {
 	generatedOutputPath := "testdata/generated/azuredeploy-generated.json"
 	expectedOutputPath := "testdata/azuredeploy.json"
 
-	options := GenerateTemplateOptions{
-		BundleLoc:  bundlePath,
-		Indent:     true,
-		OutputFile: generatedOutputPath,
-		Overwrite:  true,
-		Version:    "latest",
+	file, err := os.OpenFile(generatedOutputPath, os.O_RDWR|os.O_CREATE, 0644)
+
+	if err != nil {
+		t.Errorf("Error opening output file: %w", err)
 	}
 
-	err := GenerateTemplate(options)
+	defer file.Close()
+
+	options := GenerateTemplateOptions{
+		BundleLoc: bundlePath,
+		Indent:    true,
+		Writer:    file,
+	}
+
+	err = GenerateTemplate(options)
 	if err != nil {
 		t.Errorf("GenerateTemplate failed: %s", err.Error())
 	}
@@ -52,16 +58,22 @@ func TestGenerateSimpleTemplate(t *testing.T) {
 	generatedOutputPath := "testdata/generated/azuredeploy-simple-generated.json"
 	expectedOutputPath := "testdata/azuredeploy-simple.json"
 
-	options := GenerateTemplateOptions{
-		BundleLoc:  bundlePath,
-		Indent:     true,
-		OutputFile: generatedOutputPath,
-		Overwrite:  true,
-		Version:    "latest",
-		Simplify:   true,
+	file, err := os.OpenFile(generatedOutputPath, os.O_RDWR|os.O_CREATE, 0644)
+
+	if err != nil {
+		t.Errorf("Error opening output file: %w", err)
 	}
 
-	err := GenerateTemplate(options)
+	defer file.Close()
+
+	options := GenerateTemplateOptions{
+		BundleLoc: bundlePath,
+		Indent:    true,
+		Writer:    file,
+		Simplify:  true,
+	}
+
+	err = GenerateTemplate(options)
 	if err != nil {
 		t.Errorf("GenerateTemplate failed: %s", err.Error())
 	}
