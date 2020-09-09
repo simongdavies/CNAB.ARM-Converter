@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/handlers"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/models"
 	log "github.com/sirupsen/logrus"
@@ -24,10 +25,12 @@ func Listen() {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
+	router.Use(common.SetOriginalRequestURI)
 	router.Use(middleware.Logger)
 	router.Use(middleware.Timeout(60 * time.Second))
 	router.Use(middleware.Recoverer)
-	router.Mount(models.GeneratorPath, handlers.NewTemplateHandler())
+	router.Handle(models.TemplateGeneratorPath+"/*", handlers.NewTemplateHandler())
+	router.Handle(models.NestedResourceGeneratorPath+"/*", handlers.NewNestedDeploymentHandler())
 	log.Infof("Starting to listen on port  %s", port)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), router)
 	if err != nil {

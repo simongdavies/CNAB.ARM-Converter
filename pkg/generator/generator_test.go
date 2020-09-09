@@ -26,8 +26,11 @@ func TestGenerateTemplate(t *testing.T) {
 
 	options := GenerateTemplateOptions{
 		BundleLoc: bundlePath,
-		Indent:    true,
-		Writer:    file,
+		GenerateOptions: GenerateOptions{
+			Indent:   true,
+			Writer:   file,
+			Simplify: true,
+		},
 	}
 
 	err = GenerateTemplate(options)
@@ -68,9 +71,11 @@ func TestGenerateSimpleTemplate(t *testing.T) {
 
 	options := GenerateTemplateOptions{
 		BundleLoc: bundlePath,
-		Indent:    true,
-		Writer:    file,
-		Simplify:  true,
+		GenerateOptions: GenerateOptions{
+			Indent:   true,
+			Writer:   file,
+			Simplify: true,
+		},
 	}
 
 	err = GenerateTemplate(options)

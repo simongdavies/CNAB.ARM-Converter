@@ -53,11 +53,13 @@ var rootCmd = &cobra.Command{
 		defer file.Close()
 
 		options := generator.GenerateTemplateOptions{
-			BundleLoc:         fileloc,
-			Indent:            indent,
-			Writer:            file,
-			Simplify:          simplify,
-			BundlePullOptions: &opts,
+			BundleLoc: fileloc,
+			GenerateOptions: generator.GenerateOptions{
+				Indent:            indent,
+				Writer:            file,
+				Simplify:          simplify,
+				BundlePullOptions: &opts,
+			},
 		}
 
 		return generator.GenerateTemplate(options)

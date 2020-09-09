@@ -1,5 +1,13 @@
 package common
 
+var CNABParam = []string{
+	"cnab_resource_group",
+	"cnab_azure_subscription_id",
+	"cnab_azure_state_fileshare",
+	"cnab_azure_state_storage_account_name",
+	"cnab_azure_verbose",
+	"cnab_delete_outputs_from_fileshare"}
+
 // EnvironmentVariableNames defines environment variables names
 type EnvironmentVariableNames struct {
 	CnabParameterPrefix                       string

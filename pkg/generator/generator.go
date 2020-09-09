@@ -11,6 +11,7 @@ import (
 
 	"get.porter.sh/porter/pkg/porter"
 	"github.com/cnabio/cnab-go/bundle"
+	"github.com/cnabio/cnab-go/bundle/definition"
 	"github.com/cnabio/cnab-to-oci/relocation"
 	"github.com/cnabio/cnab-to-oci/remotes"
 	"github.com/docker/cli/cli/config"
@@ -19,43 +20,85 @@ import (
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 )
 
-// GenerateTemplateOptions is the set of options for configuring GenerateTemplate
-type GenerateTemplateOptions struct {
-	BundleLoc         string
+type GenerateOptions struct {
 	Writer            io.Writer
 	Indent            bool
 	Simplify          bool
 	BundlePullOptions *porter.BundlePullOptions
 }
 
+// GenerateNestedDeploymentOptions is the set of options for configuring GenerateNestedDeployment
+type GenerateNestedDeploymentOptions struct {
+	Uri string
+	GenerateOptions
+}
+
+// GenerateTemplateOptions is the set of options for configuring GenerateTemplate
+type GenerateTemplateOptions struct {
+	BundleLoc string
+	GenerateOptions
+}
+
 // GenerateTemplate generates ARM template from bundle metadata
-func GenerateTemplate(options GenerateTemplateOptions) error {
+func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 
-	useTag := false
-
-	if options.BundlePullOptions.Tag != "" {
-		useTag = true
-	}
-
-	// TODO support http uri and registry based bundle
-	bundle, err := loadBundle(options.BundleLoc, useTag, options.BundlePullOptions)
-
+	bundle, err := getBundleFromTag(options.BundlePullOptions)
 	if err != nil {
 		return err
 	}
 
-	bundleName := bundle.Name
-	bundleTag := options.BundlePullOptions.Tag
-	if !useTag {
-		var err error
-		bundleTag, err = getBundleTag(bundle)
-		if err != nil {
-			return err
+	generatedDeployment := template.NewCnabArmDeployment(bundle.Name, options.Uri, options.Simplify)
+
+	parameterKeys, err := getParameterKeys(*bundle)
+	if err != nil {
+		return err
+	}
+
+	for _, parameterKey := range parameterKeys {
+
+		parameter := bundle.Parameters[parameterKey]
+		definition := bundle.Definitions[parameter.Definition]
+
+		_, isCnabParam := isCnabParam(parameterKey)
+
+		if !isCnabParam || (isCnabParam && !options.Simplify) {
+			defaultValue := getDefaultValue(definition, parameter)
+			generatedDeployment.Properties.Parameters[parameterKey] = template.ParameterValue{
+				Value: defaultValue,
+			}
+		}
+
+	}
+
+	credentialKeys, err := getCredentialKeys(*bundle)
+	if err != nil {
+		return err
+	}
+
+	for _, credentialKey := range credentialKeys {
+		defaultValue := fmt.Sprintf("TODO add value for %s", credentialKey)
+		credential := bundle.Credentials[credentialKey]
+		if !credential.Required {
+			defaultValue = fmt.Sprintf("TODO add value or delete this entry as credential %s is optional", credentialKey)
+		}
+		generatedDeployment.Properties.Parameters[credentialKey] = template.ParameterValue{
+			Value: defaultValue,
 		}
 	}
 
+	return writeResonseData(options.Writer, generatedDeployment, options.Indent)
+}
+
+// GenerateTemplate generates ARM template from bundle metadata
+func GenerateTemplate(options GenerateTemplateOptions) error {
+
+	bundle, bundleTag, err := getBundleDetails(options)
+	if err != nil {
+		return err
+	}
+
 	generatedTemplate, err := template.NewCnabArmDriverTemplate(
-		bundleName,
+		bundle.Name,
 		bundleTag,
 		bundle.Outputs,
 		options.Simplify)
@@ -64,32 +107,18 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		return err
 	}
 
-	// Sort parameters, because Go randomizes order when iterating a map
-	var parameterKeys []string
-	for parameterKey := range bundle.Parameters {
-		parameterKeys = append(parameterKeys, parameterKey)
+	parameterKeys, err := getParameterKeys(*bundle)
+	if err != nil {
+		return err
 	}
-	sort.Strings(parameterKeys)
 
 	for _, parameterKey := range parameterKeys {
 
 		parameter := bundle.Parameters[parameterKey]
 		definition := bundle.Definitions[parameter.Definition]
-
-		// Parameter names cannot contain - as they are converted into environment variables set on ACI container
-
-		// porter-debug is added automatically so can only be modified by updating porter
-		if parameterKey == "porter-debug" {
-			continue
-		}
-
-		if strings.Contains(parameterKey, "-") {
-			return fmt.Errorf("Invalid Parameter name: %s.ARM template generation requires parameter names that can be used as environment variables", parameterKey)
-		}
-
 		var paramEnvVar template.EnvironmentVariable
 
-		if cnabParam, ok := isCnabParam(parameterKey, *generatedTemplate); options.Simplify && ok {
+		if cnabParam, ok := isCnabParam(parameterKey); options.Simplify && ok {
 			paramEnvVar = template.EnvironmentVariable{
 				Name:  common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
 				Value: fmt.Sprintf("[variables('%s')]", cnabParam),
@@ -108,21 +137,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 				allowedValues = definition.Enum
 			}
 
-			var defaultValue interface{}
-			if definition.Default != nil {
-				defaultValue = definition.Default
-
-				// If value is a string starting with square bracket, then we need to escape it
-				// otherwise ARM thinks it is an expression
-				if v, ok := defaultValue.(string); ok && strings.HasPrefix(v, "[") {
-					v = "[" + v
-					defaultValue = v
-				}
-			} else {
-				if !parameter.Required {
-					defaultValue = ""
-				}
-			}
+			defaultValue := getDefaultValue(definition, parameter)
 
 			var minValue *int
 			if definition.Minimum != nil {
@@ -190,20 +205,14 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 	}
 
-	// Sort credentials, because Go randomizes order when iterating a map
-	var credentialKeys []string
-	for credentialKey := range bundle.Credentials {
-		credentialKeys = append(credentialKeys, credentialKey)
+	credentialKeys, err := getCredentialKeys(*bundle)
+	if err != nil {
+		return err
 	}
-	sort.Strings(credentialKeys)
 
 	for _, credentialKey := range credentialKeys {
 
 		credential := bundle.Credentials[credentialKey]
-
-		if strings.Contains(credentialKey, "-") {
-			return fmt.Errorf("Invalid Credential name: %s.ARM template generation requires credential names that can be used as environment variables", credentialKey)
-		}
 
 		var metadata template.Metadata
 		var description string
@@ -236,7 +245,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 
 		var credEnvVar template.EnvironmentVariable
 
-		if cnabParam, ok := isCnabParam(credentialKey, *generatedTemplate); options.Simplify && ok {
+		if cnabParam, ok := isCnabParam(credentialKey); options.Simplify && ok {
 			credEnvVar = template.EnvironmentVariable{
 				Name:        envVarName,
 				SecureValue: fmt.Sprintf("[variables('%s')]", cnabParam),
@@ -259,27 +268,43 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 	}
 
-	var data []byte
-	if options.Indent {
-		data, _ = json.MarshalIndent(generatedTemplate, "", "\t")
-	} else {
-		data, _ = json.Marshal(generatedTemplate)
-	}
+	return writeResonseData(options.Writer, generatedTemplate, options.Indent)
 
-	if _, err = options.Writer.Write(data); err != nil {
-		return fmt.Errorf("Error writing template: %w", err)
-	}
-
-	return nil
 }
 
-func isCnabParam(parameterKey string, template template.Template) (string, bool) {
-	cnabKey := "cnab_" + parameterKey
-	if _, ok := template.Variables[cnabKey]; ok {
-		return cnabKey, true
+func getBundleDetails(options GenerateTemplateOptions) (*bundle.Bundle, string, error) {
+	useTag := false
+
+	if options.BundlePullOptions.Tag != "" {
+		useTag = true
 	}
 
+	bundle, err := getBundle(options.BundleLoc, useTag, options.BundlePullOptions)
+	if err != nil {
+		return nil, "", err
+	}
+
+	bundleTag := options.BundlePullOptions.Tag
+	if !useTag {
+		var err error
+		bundleTag, err = getBundleTag(bundle)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	return bundle, bundleTag, nil
+}
+
+func isCnabParam(parameterKey string) (string, bool) {
+	cnabKey := "cnab_" + parameterKey
+
+	for _, name := range common.CNABParam {
+		if name == cnabKey {
+			return cnabKey, true
+		}
+	}
 	return "", false
+
 }
 
 func getBundleTag(bundle *bundle.Bundle) (string, error) {
@@ -332,15 +357,19 @@ func toARMType(jsonType string, isSensitive bool) (string, error) {
 
 	return armType, err
 }
+func getBundleFromTag(bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
+	// TODO deal with relocationMap
+	bun, _, err := pullBundle(bundleOptions.Tag, bundleOptions.InsecureRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to pull bundle with tag: %s. %w", bundleOptions.Tag, err)
+	}
+	return &bun, nil
+}
 
-func loadBundle(source string, useTag bool, bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
+func getBundle(source string, useTag bool, bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
 	// TODO deal with relocationMap
 	if useTag {
-		bun, _, err := pullBundle(bundleOptions.Tag, bundleOptions.InsecureRegistry)
-		if err != nil {
-			return nil, fmt.Errorf("Unable to pull bundle with tag: %s. %w", bundleOptions.Tag, err)
-		}
-		return &bun, nil
+		return getBundleFromTag(bundleOptions)
 	}
 
 	return getBundleFromFile(source)
@@ -380,4 +409,69 @@ func pullBundle(tag string, insecureRegistry bool) (bundle.Bundle, *relocation.I
 		return *bun, nil, nil
 	}
 	return *bun, &reloMap, nil
+}
+
+func getParameterKeys(bundle bundle.Bundle) ([]string, error) {
+	// Sort parameters, because Go randomizes order when iterating a map
+	var parameterKeys []string
+	for parameterKey := range bundle.Parameters {
+		// porter-debug is added automatically so can only be modified by updating porter
+		if parameterKey == "porter-debug" {
+			continue
+		}
+		if strings.Contains(parameterKey, "-") {
+			return nil, fmt.Errorf("Invalid Parameter name: %s.ARM template generation requires parameter names that can be used as environment variables", parameterKey)
+		}
+		parameterKeys = append(parameterKeys, parameterKey)
+	}
+	sort.Strings(parameterKeys)
+	return parameterKeys, nil
+}
+
+func getCredentialKeys(bundle bundle.Bundle) ([]string, error) {
+	// Sort credentials, because Go randomizes order when iterating a map
+	var credentialKeys []string
+	for credentialKey := range bundle.Credentials {
+
+		if strings.Contains(credentialKey, "-") {
+			return nil, fmt.Errorf("Invalid Credential name: %s.ARM template generation requires credential names that can be used as environment variables", credentialKey)
+		}
+		credentialKeys = append(credentialKeys, credentialKey)
+	}
+	sort.Strings(credentialKeys)
+	return credentialKeys, nil
+}
+
+func getDefaultValue(definition *definition.Schema, parameter bundle.Parameter) interface{} {
+	var defaultValue interface{}
+	if definition.Default != nil {
+		defaultValue = definition.Default
+
+		// If value is a string starting with square bracket, then we need to escape it
+		// otherwise ARM thinks it is an expression
+		if v, ok := defaultValue.(string); ok && strings.HasPrefix(v, "[") {
+			v = "[" + v
+			defaultValue = v
+		}
+	} else {
+		if !parameter.Required {
+			defaultValue = ""
+		}
+	}
+	return defaultValue
+}
+
+func writeResonseData(writer io.Writer, response interface{}, indent bool) error {
+	var data []byte
+	if indent {
+		data, _ = json.MarshalIndent(response, "", "\t")
+	} else {
+		data, _ = json.Marshal(response)
+	}
+
+	if _, err := writer.Write(data); err != nil {
+		return fmt.Errorf("Error writing response: %w", err)
+	}
+
+	return nil
 }

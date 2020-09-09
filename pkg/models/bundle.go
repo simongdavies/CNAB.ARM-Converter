@@ -15,8 +15,9 @@ import (
 type BundleContextKey string
 
 const (
-	GeneratorPath string           = "/api/generate"
-	BundleContext BundleContextKey = "bundle"
+	TemplateGeneratorPath       string           = "/api/generate/template"
+	NestedResourceGeneratorPath string           = "/api/generate/deployment"
+	BundleContext               BundleContextKey = "bundle"
 )
 
 type Bundle struct {
@@ -31,8 +32,11 @@ func BundleCtx(next http.Handler) http.Handler {
 
 		// get the image name
 
-		imageName := strings.TrimPrefix(r.URL.Path, GeneratorPath)
-		if len(imageName) < 1 {
+		imageName := strings.TrimPrefix(r.URL.Path, TemplateGeneratorPath)
+		imageName = strings.TrimPrefix(imageName, NestedResourceGeneratorPath)
+		imageName = strings.TrimPrefix(imageName, "/")
+
+		if len(imageName) == 0 {
 			_ = render.Render(w, r, helpers.ErrorInvalidRequest("Image Name missing in path"))
 			return
 		}
@@ -57,7 +61,7 @@ func BundleCtx(next http.Handler) http.Handler {
 
 func getQueryParam(r *http.Request, name string) bool {
 	result := false
-	val := r.URL.Query().Get("name")
+	val := r.URL.Query().Get(name)
 	if len(val) > 0 && strings.ToLower(val) == "true" {
 		result = true
 	}

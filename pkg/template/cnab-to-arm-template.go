@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cnabio/cnab-go/bundle"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 )
 
 // NewCnabArmDriverTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
@@ -172,8 +173,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 	if !simplify {
 		// TODO:The allowed values should be generated automatically based on ACI availability
 		parameters["location"] = Parameter{
-			Type:         "string",
-			DefaultValue: "[resourceGroup().Location]",
+			Type: "string",
 			AllowedValues: []string{
 				"westus",
 				"eastus",
@@ -199,11 +199,11 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "The location in which the resources will be created.",
 			},
+			DefaultValue: common.ParameterDefaults["location"],
 		}
 
 		parameters["deployment_script_cleanup"] = Parameter{
-			Type:         "string",
-			DefaultValue: "Always",
+			Type: "string",
 			AllowedValues: []string{
 				"Always",
 				"OnSuccess",
@@ -212,14 +212,15 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "When to clean up deployment script resources see https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/deployment-script-template?tabs=CLI#clean-up-deployment-script-resources.",
 			},
+			DefaultValue: common.ParameterDefaults["deployment_script_cleanup"],
 		}
 
 		parameters["cnab_azure_subscription_id"] = Parameter{
-			Type:         "string",
-			DefaultValue: "[subscription().subscriptionId]",
+			Type: "string",
 			Metadata: &Metadata{
 				Description: "Azure Subscription Id - this is the subscription to be used for ACI creation, if not specified the first (random) subscription is used.",
 			},
+			DefaultValue: common.ParameterDefaults["cnab_azure_subscription_id"],
 		}
 
 		parameters["deploymentScriptResourceName"] = Parameter{
@@ -235,7 +236,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "The storage account name for the account for the CNAB state to be stored in, by default this will be in the current resource group and will be created if it does not exist",
 			},
-			DefaultValue: "[concat('cnabstate',uniqueString(resourceGroup().id))]",
+			DefaultValue: common.ParameterDefaults["cnab_azure_state_storage_account_name"],
 		}
 
 		parameters["cnab_azure_state_fileshare"] = Parameter{
@@ -251,7 +252,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "The resource group for the cnab azure driver to create ACI container group in",
 			},
-			DefaultValue: "[resourceGroup().name]",
+			DefaultValue: common.ParameterDefaults["cnab_resource_group"],
 		}
 
 		parameters["cnab_azure_verbose"] = Parameter{
@@ -259,7 +260,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "Creates verbose output from cnab azure driver",
 			},
-			DefaultValue: false,
+			DefaultValue: common.ParameterDefaults["cnab_azure_verbose"],
 		}
 
 		parameters["cnab_delete_outputs_from_fileshare"] = Parameter{
@@ -267,7 +268,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "Deletes any bundle outputs from temporary location in fileshare",
 			},
-			DefaultValue: true,
+			DefaultValue: common.ParameterDefaults["cnab_delete_outputs_from_fileshare"],
 		}
 
 		parameters["msi_name"] = Parameter{
@@ -275,15 +276,15 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "resource name of the user msi to execute the azure aci driver and deployment script",
 			},
-			DefaultValue: "cnabinstall",
+			DefaultValue: common.ParameterDefaults["msi_name"],
 		}
 
 		parameters["porter_version"] = Parameter{
-			Type:         "string",
-			DefaultValue: "latest",
+			Type: "string",
 			Metadata: &Metadata{
 				Description: "The version of porter to use",
 			},
+			DefaultValue: common.ParameterDefaults["porter_version"],
 		}
 	}
 
@@ -357,7 +358,8 @@ func (template *Template) addSimpleVariables(bundleName string, bundleTag string
 		"deploymentScriptResourceName":          fmt.Sprintf("[concat('cnab-',uniqueString(resourceGroup().id, '%s'))]", bundleName),
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
 		"porter_version":                        "latest",
-		"storage_location":                      "canadacentral",
+		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
+		"storage_location": "canadacentral",
 	}
 
 	template.Variables = variables
