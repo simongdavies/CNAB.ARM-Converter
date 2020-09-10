@@ -95,7 +95,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 				},
 				ForceUpdateTag: "[parameters('deploymentTime')]",
 				AzCliVersion:   "2.9.1",
-				Timeout:        "PT5M",
+				Timeout:        "PT15M",
 				EnvironmentVariables: []EnvironmentVariable{
 					{
 						Name:  "CNAB_INSTALLATION_NAME",
@@ -396,7 +396,8 @@ func createScript(tag string) string {
 		"PARAMS=",
 		"CREDS=",
 		"SUFFIX=",
-		"for env_var in ${!CNAB_PARAM_@};do NAME=${env_var#CNAB_PARAM_};PARAMS=$(echo ${PARAMS} --param ${NAME}=\"'${!env_var}'\"); done",
+		"for env_var in ${!CNAB_PARAM_@};do NAME=${env_var#CNAB_PARAM_};PARAMS=$(echo ${PARAMS} --param ${NAME}=$(echo ${!env_var}|sed -e s:\\\":\\':g)); done",
+		//"PARAMS=$(echo ${PARAMS}|sed -e s:\\\":\\\"\\\":g)",
 		"for env_var in ${!CNAB_CRED_FILE@};do NAME=${env_var#CNAB_CRED_FILE_};echo ${!env_var}|base64 -d > /tmp/${NAME}; done",
 		"if [[  ! -z  ${!CNAB_CRED_@} ]];then CREDSFILE=$(mktemp);CREDS=\" --cred ${CREDSFILE}\";echo {\\\"Name\\\": \\\"${2}\\\" , > ${CREDSFILE};echo \\\"Credentials\\\":[ >> ${CREDSFILE}; for env_var in ${!CNAB_CRED_@};do NAME=${env_var#CNAB_CRED_};echo ${SUFFIX};if [[ ${NAME} = FILE_* ]];then NAME=${NAME#FILE_};fi;echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${CREDSFILE};echo \\\"Source\\\": { >> ${CREDSFILE};if [[ ${env_var} = CNAB_CRED_FILE_* ]];then echo \\\"Path\\\": \\\"/tmp/${NAME}\\\" >> ${CREDSFILE};else echo \\\"EnvVar\\\": \\\"${env_var}\\\" >> ${CREDSFILE};fi; echo }} >> ${CREDSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done;echo ]} >> ${CREDSFILE};fi",
 		"cat ${CREDSFILE}",

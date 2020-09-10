@@ -62,7 +62,17 @@ var rootCmd = &cobra.Command{
 			},
 		}
 
-		return generator.GenerateTemplate(options)
+		err = generator.GenerateTemplate(options)
+		if err != nil {
+			return fmt.Errorf("Error generating template: %w", err)
+		}
+
+		err = file.Sync()
+		if err != nil {
+			return fmt.Errorf("Error saving output file: %w", err)
+		}
+
+		return nil
 	},
 }
 
@@ -96,11 +106,13 @@ func checkOutputFile(dest string, overwrite bool) error {
 		if !overwrite {
 			return fmt.Errorf("File %s exists and overwrite not specified", dest)
 		}
+		if err := os.Truncate(dest, 0); err != nil {
+			return fmt.Errorf("File %s exists and truncate failed with error:%w", dest, err)
+		}
 	} else {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("unable to access output file: %s. %w", dest, err)
 		}
 	}
-
 	return nil
 }
