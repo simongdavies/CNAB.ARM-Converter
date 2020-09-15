@@ -15,6 +15,7 @@ var outputloc string
 var overwrite bool
 var indent bool
 var simplify bool
+var replaceKubeconfig bool
 var opts porter.BundlePullOptions
 
 var versionCmd = &cobra.Command{
@@ -58,6 +59,7 @@ var rootCmd = &cobra.Command{
 				Indent:            indent,
 				Writer:            file,
 				Simplify:          simplify,
+				ReplaceKubeconfig: replaceKubeconfig,
 				BundlePullOptions: &opts,
 			},
 		}
@@ -82,6 +84,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&overwrite, "overwrite", false, "specifies if to overwrite the output file if it already exists, default is false")
 	rootCmd.Flags().BoolVarP(&indent, "indent", "i", false, "specifies if the json output should be indented")
 	rootCmd.Flags().BoolVarP(&simplify, "simplify", "s", false, "specifies if the ARM template should be simplified, exposing less parameters and inferring default values")
+	rootCmd.Flags().BoolVarP(&replaceKubeconfig, "replace", "r", false, "specifies if the ARM template generated should replace Kubeconfig Parameters with AKS references")
 	rootCmd.Flags().StringVarP(&opts.Tag, "tag", "t", "", "Use a bundle specified by the given tag.")
 	rootCmd.Flags().BoolVar(&opts.Force, "force", false, "Force a fresh pull of the bundle")
 	rootCmd.Flags().BoolVar(&opts.InsecureRegistry, "insecure-registry", false, "Don't require TLS for the registry")

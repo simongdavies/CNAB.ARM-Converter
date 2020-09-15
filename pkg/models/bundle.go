@@ -21,10 +21,11 @@ const (
 )
 
 type Bundle struct {
-	Ref              string
-	Force            bool
-	InsecureRegistry bool
-	Simplyfy         bool
+	Ref               string
+	Force             bool
+	InsecureRegistry  bool
+	Simplyfy          bool
+	ReplaceKubeconfig bool
 }
 
 func BundleCtx(next http.Handler) http.Handler {
@@ -48,10 +49,11 @@ func BundleCtx(next http.Handler) http.Handler {
 			return
 		}
 		bundleContext := Bundle{
-			Ref:              imageName,
-			Force:            getQueryParam(r, "force"),
-			InsecureRegistry: getQueryParam(r, "insecureregistry"),
-			Simplyfy:         getQueryParam(r, "simplyfy"),
+			Ref:               imageName,
+			Force:             getQueryParam(r, "force"),
+			InsecureRegistry:  getQueryParam(r, "insecureregistry"),
+			Simplyfy:          getQueryParam(r, "simplyfy"),
+			ReplaceKubeconfig: getQueryParam(r, "useaks"),
 		}
 
 		ctx := context.WithValue(r.Context(), BundleContext, &bundleContext)
@@ -61,10 +63,11 @@ func BundleCtx(next http.Handler) http.Handler {
 
 func getQueryParam(r *http.Request, name string) bool {
 	result := false
-	val := r.URL.Query().Get(name)
-	if len(val) > 0 && strings.ToLower(val) == "true" {
-		result = true
+	for k, v := range r.URL.Query() {
+		// ignore multiple values
+		if strings.EqualFold(k, name) && (len(v[0]) == 0 || strings.ToLower(v[0]) == "true") {
+			result = true
+		}
 	}
-
 	return result
 }

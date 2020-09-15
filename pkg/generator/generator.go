@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -24,6 +25,7 @@ type GenerateOptions struct {
 	Writer            io.Writer
 	Indent            bool
 	Simplify          bool
+	ReplaceKubeconfig bool
 	BundlePullOptions *porter.BundlePullOptions
 }
 
@@ -62,9 +64,21 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 		_, isCnabParam := isCnabParam(parameterKey)
 
 		if !isCnabParam || (isCnabParam && !options.Simplify) {
-			defaultValue := getDefaultValue(definition, parameter)
-			generatedDeployment.Properties.Parameters[parameterKey] = template.ParameterValue{
-				Value: defaultValue,
+			if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == "kubeconfig" {
+				generatedDeployment.Properties.Parameters["aksResourceGroupName"] = template.ParameterValue{
+					Value: "TODO add value for aksResourceGroupName or delete this parameter to use default of current resource group",
+				}
+				generatedDeployment.Properties.Parameters["aksResourceName"] = template.ParameterValue{
+					Value: "TODO add value for aksResourceName",
+				}
+			} else {
+				defaultValue, required := getDefaultValue(definition, parameter)
+				if reflect.TypeOf(defaultValue) == nil && required {
+					defaultValue, _ = fmt.Printf("TODO Set Value for %s no default was provided and parameter is required", parameterKey)
+				}
+				generatedDeployment.Properties.Parameters[parameterKey] = template.ParameterValue{
+					Value: defaultValue,
+				}
 			}
 		}
 
@@ -76,17 +90,26 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 	}
 
 	for _, credentialKey := range credentialKeys {
-		defaultValue := fmt.Sprintf("TODO add value for %s", credentialKey)
 		credential := bundle.Credentials[credentialKey]
-		if !credential.Required {
-			defaultValue = fmt.Sprintf("TODO add value or delete this entry as credential %s is optional", credentialKey)
-		}
-		generatedDeployment.Properties.Parameters[credentialKey] = template.ParameterValue{
-			Value: defaultValue,
+		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == "kubeconfig" {
+			generatedDeployment.Properties.Parameters["aksResourceGroupName"] = template.ParameterValue{
+				Value: "TODO add value for aksResourceGroupName or delete this parameter to use default of current resource group",
+			}
+			generatedDeployment.Properties.Parameters["aksResourceName"] = template.ParameterValue{
+				Value: "TODO add value for aksResourceName",
+			}
+		} else {
+			defaultValue := fmt.Sprintf("TODO add value for %s", credentialKey)
+			if !credential.Required {
+				defaultValue = fmt.Sprintf("TODO add value or delete this entry as credential %s is optional", credentialKey)
+			}
+			generatedDeployment.Properties.Parameters[credentialKey] = template.ParameterValue{
+				Value: defaultValue,
+			}
 		}
 	}
 
-	return writeResonseData(options.Writer, generatedDeployment, options.Indent)
+	return writeResponseData(options.Writer, generatedDeployment, options.Indent)
 }
 
 // GenerateTemplate generates ARM template from bundle metadata
@@ -101,7 +124,8 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		bundle.Name,
 		bundleTag,
 		bundle.Outputs,
-		options.Simplify)
+		options.Simplify,
+	)
 
 	if err != nil {
 		return err
@@ -116,13 +140,15 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 
 		parameter := bundle.Parameters[parameterKey]
 		definition := bundle.Definitions[parameter.Definition]
-		var paramEnvVar template.EnvironmentVariable
+		paramEnvVar := template.EnvironmentVariable{
+			Name: common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
+		}
 
-		if cnabParam, ok := isCnabParam(parameterKey); options.Simplify && ok {
-			paramEnvVar = template.EnvironmentVariable{
-				Name:  common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
-				Value: fmt.Sprintf("[variables('%s')]", cnabParam),
-			}
+		if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == "kubeconfig" {
+			paramEnvVar.SecureValue = "[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('aksResourceGroupName'),'Microsoft.ContainerService/managedClusters',parameters('aksResourceName')), '2020-09-01').kubeconfigs[0].value]"
+			setAKSParameters(generatedTemplate, bundle)
+		} else if cnabParam, ok := isCnabParam(parameterKey); options.Simplify && ok {
+			paramEnvVar.Value = fmt.Sprintf("[variables('%s')]", cnabParam)
 		} else {
 
 			var metadata template.Metadata
@@ -137,7 +163,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 				allowedValues = definition.Enum
 			}
 
-			defaultValue := getDefaultValue(definition, parameter)
+			defaultValue, _ := getDefaultValue(definition, parameter)
 
 			var minValue *int
 			if definition.Minimum != nil {
@@ -186,10 +212,6 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 				MaxValue:      maxValue,
 				MinLength:     minLength,
 				MaxLength:     maxLength,
-			}
-
-			paramEnvVar = template.EnvironmentVariable{
-				Name: common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
 			}
 
 			if isSensitive {
@@ -243,33 +265,50 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 			defaultValue = ""
 		}
 
-		var credEnvVar template.EnvironmentVariable
+		credEnvVar := template.EnvironmentVariable{
+			Name: envVarName,
+		}
 
-		if cnabParam, ok := isCnabParam(credentialKey); options.Simplify && ok {
-			credEnvVar = template.EnvironmentVariable{
-				Name:        envVarName,
-				SecureValue: fmt.Sprintf("[variables('%s')]", cnabParam),
-			}
+		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == "kubeconfig" {
+			credEnvVar.SecureValue = "[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('aksResourceGroupName'),'Microsoft.ContainerService/managedClusters',parameters('aksResourceName')), '2020-09-01').kubeconfigs[0].value]"
+			setAKSParameters(generatedTemplate, bundle)
 		} else {
-			generatedTemplate.Parameters[credentialKey] = template.Parameter{
-				Type:         "securestring",
-				Metadata:     &metadata,
-				DefaultValue: defaultValue,
-			}
-
-			credEnvVar = template.EnvironmentVariable{
-				Name:        envVarName,
-				SecureValue: fmt.Sprintf("[parameters('%s')]", credentialKey),
+			if cnabParam, ok := isCnabParam(credentialKey); options.Simplify && ok {
+				credEnvVar.SecureValue = fmt.Sprintf("[variables('%s')]", cnabParam)
+			} else {
+				generatedTemplate.Parameters[credentialKey] = template.Parameter{
+					Type:         "securestring",
+					Metadata:     &metadata,
+					DefaultValue: defaultValue,
+				}
+				credEnvVar.SecureValue = fmt.Sprintf("[parameters('%s')]", credentialKey)
 			}
 		}
 
 		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(credEnvVar); err != nil {
 			return err
 		}
+
 	}
 
-	return writeResonseData(options.Writer, generatedTemplate, options.Indent)
+	return writeResponseData(options.Writer, generatedTemplate, options.Indent)
 
+}
+
+func setAKSParameters(generatedTemplate *template.Template, bundle *bundle.Bundle) {
+	generatedTemplate.Parameters["aksResourceGroupName"] = template.Parameter{
+		Type: "string",
+		Metadata: &template.Metadata{
+			Description: fmt.Sprintf("The resource group that contains the AKS Cluster to deploy bundle %s to", bundle.Name),
+		},
+		DefaultValue: "[resourceGroup().Name]",
+	}
+	generatedTemplate.Parameters["aksResourceName"] = template.Parameter{
+		Type: "string",
+		Metadata: &template.Metadata{
+			Description: fmt.Sprintf("The name of the AKS Cluster to deploy bundle %s to", bundle.Name),
+		},
+	}
 }
 
 func getBundleDetails(options GenerateTemplateOptions) (*bundle.Bundle, string, error) {
@@ -367,7 +406,6 @@ func getBundleFromTag(bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, 
 }
 
 func getBundle(source string, useTag bool, bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
-	// TODO deal with relocationMap
 	if useTag {
 		return getBundleFromTag(bundleOptions)
 	}
@@ -442,7 +480,7 @@ func getCredentialKeys(bundle bundle.Bundle) ([]string, error) {
 	return credentialKeys, nil
 }
 
-func getDefaultValue(definition *definition.Schema, parameter bundle.Parameter) interface{} {
+func getDefaultValue(definition *definition.Schema, parameter bundle.Parameter) (interface{}, bool) {
 	var defaultValue interface{}
 	if definition.Default != nil {
 		defaultValue = definition.Default
@@ -455,21 +493,32 @@ func getDefaultValue(definition *definition.Schema, parameter bundle.Parameter) 
 		}
 	} else {
 		if !parameter.Required {
-			defaultValue = ""
+			armType, err := toARMType(definition.Type.(string), false)
+			if err == nil {
+				switch armType {
+				case "string":
+					defaultValue = ""
+				case "object":
+					var o struct{}
+					defaultValue = o
+				case "array":
+					defaultValue = make([]interface{}, 0)
+				}
+			}
 		}
 	}
-	return defaultValue
+	return defaultValue, parameter.Required
 }
 
-func writeResonseData(writer io.Writer, response interface{}, indent bool) error {
-	var data []byte
+func writeResponseData(writer io.Writer, response interface{}, indent bool) error {
+	encoder := json.NewEncoder(writer)
+	encoder.SetEscapeHTML(false)
 	if indent {
-		data, _ = json.MarshalIndent(response, "", "\t")
-	} else {
-		data, _ = json.Marshal(response)
+		encoder.SetIndent("", "\t")
 	}
+	err := encoder.Encode(response)
 
-	if _, err := writer.Write(data); err != nil {
+	if err != nil {
 		return fmt.Errorf("Error writing response: %w", err)
 	}
 

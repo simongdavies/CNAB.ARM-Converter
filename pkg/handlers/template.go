@@ -47,6 +47,7 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 			Indent:            true,
 			Writer:            w,
 			Simplify:          bundle.Simplyfy,
+			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
 			BundlePullOptions: &opts,
 		},
 	}
@@ -71,6 +72,7 @@ func nestedDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 			Indent:            true,
 			Writer:            w,
 			Simplify:          bundle.Simplyfy,
+			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
 			BundlePullOptions: &opts,
 		},
 	}
