@@ -21,17 +21,19 @@ Usage:
 
 Available Commands:
   help        Help about any command
-  listen      Starts an http server to listen for requests for template generation
+  listen      Starts an http server to listen for request for template generation
   version     Print the cnabtoarmtemplate version
 
 Flags:
-  -b, --bundle string   name of bundle file to generate template for, default is bundle.json in the current directory 
+  -f, --file string         name of bundle file to generate template for , default is bundle.json in the current directory (default "bundle.json")
       --force               Force a fresh pull of the bundle
   -h, --help                help for cnabtoarmtemplate
   -i, --indent              specifies if the json output should be indented
-      --insecure-registry   Dont require TLS for the registry when pulling the bundle
+      --insecure-registry   Don't require TLS for the registry
   -o, --output string       file name for generated template,default is azuredeploy.json (default "azuredeploy.json")
       --overwrite           specifies if to overwrite the output file if it already exists, default is false
+  -r, --replace             specifies if the ARM template generated should replace Kubeconfig Parameters with AKS references
   -s, --simplify            specifies if the ARM template should be simplified, exposing less parameters and inferring default values
-  -t, --tag string          Use a bundle specified by the given tag , takes precedence over --bundle.
+  -t, --tag string          Use a bundle specified by the given tag.
+      --timeout int         specifies the time in minutes that is allowed for execution of the CNAB Action in the generated template (default 15)
 ```
