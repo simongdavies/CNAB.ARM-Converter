@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/cors"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/handlers"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/models"
@@ -29,6 +30,14 @@ func Listen() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Timeout(60 * time.Second))
 	router.Use(middleware.Recoverer)
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
 	router.Handle(models.TemplateGeneratorPath+"/*", handlers.NewTemplateHandler())
 	router.Handle(models.NestedResourceGeneratorPath+"/*", handlers.NewNestedDeploymentHandler())
 	log.Infof("Starting to listen on port  %s", port)

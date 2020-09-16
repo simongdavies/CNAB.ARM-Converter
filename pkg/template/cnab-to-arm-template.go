@@ -3,14 +3,17 @@ package template
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cnabio/cnab-go/bundle"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 )
 
 // NewCnabArmDriverTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[string]bundle.Output, simplify bool) (*Template, error) {
+func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[string]bundle.Output, simplify bool, timeout int) (*Template, error) {
 
+	duration, _ := time.ParseDuration(fmt.Sprintf("%dm", timeout))
+	executionTimeout := fmt.Sprintf("PT%s", strings.ToUpper(duration.String()))
 	resources := []Resource{
 		{
 			Type:       "Microsoft.ManagedIdentity/userAssignedIdentities",
@@ -95,7 +98,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 				},
 				ForceUpdateTag: "[parameters('deploymentTime')]",
 				AzCliVersion:   "2.9.1",
-				Timeout:        "PT15M",
+				Timeout:        "[variables('timeout')]",
 				EnvironmentVariables: []EnvironmentVariable{
 					{
 						Name:  "CNAB_INSTALLATION_NAME",
@@ -215,6 +218,14 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			DefaultValue: common.ParameterDefaults["deployment_script_cleanup"],
 		}
 
+		parameters["timeout"] = Parameter{
+			Type: "string",
+			Metadata: &Metadata{
+				Description: "The maximum allowed execution time for the bundle specified in the ISO 8601 format - see https://en.wikipedia.org/wiki/ISO_8601.",
+			},
+			DefaultValue: executionTimeout,
+		}
+
 		parameters["cnab_azure_subscription_id"] = Parameter{
 			Type: "string",
 			Metadata: &Metadata{
@@ -313,7 +324,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 	resource.Identity.UserAssignedIdentities = userIdentity
 
 	if simplify {
-		template.addSimpleVariables(bundleName, bundleTag)
+		template.addSimpleVariables(bundleName, executionTimeout)
 	} else {
 		template.addAdvancedVariables()
 	}
@@ -336,6 +347,7 @@ func (template *Template) addAdvancedVariables() {
 		"deploymentScriptResourceName":          "[parameters('deploymentScriptResourceName')]",
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
 		"porter_version":                        "[parameters('porter_version')]",
+		"timeout":                               "[parameters('timeout')]",
 		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
 		"storage_location": "canadacentral",
 	}
@@ -343,7 +355,7 @@ func (template *Template) addAdvancedVariables() {
 	template.Variables = variables
 }
 
-func (template *Template) addSimpleVariables(bundleName string, bundleTag string) {
+func (template *Template) addSimpleVariables(bundleName string, executionTimeout string) {
 	variables := map[string]interface{}{
 		"cnab_resource_group":                   "[resourceGroup().name]",
 		"cnab_azure_subscription_id":            "[subscription().subscriptionId]",
@@ -358,6 +370,7 @@ func (template *Template) addSimpleVariables(bundleName string, bundleTag string
 		"deploymentScriptResourceName":          fmt.Sprintf("[concat('cnab-',uniqueString(resourceGroup().id, '%s'))]", bundleName),
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
 		"porter_version":                        "latest",
+		"timeout":                               executionTimeout,
 		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
 		"storage_location": "canadacentral",
 	}
@@ -393,15 +406,21 @@ func createScript(tag string) string {
 		//TODO if the bundle exists then check that the installation is for the same bundle type
 		"if [[ -z ${INSTANCE} ]]; then ACTION='install'; fi",
 		"export CNAB_ACTION=${ACTION}",
-		"PARAMS=",
+		"SUFFIX=",
+		"PARAMSFILE=$(mktemp)",
+		"PARAMS=\" -p ${PARAMSFILE}\"",
+		"echo {\\\"Name\\\": \\\"${2}\\\" , > ${PARAMSFILE}",
+		"echo \\\"Parameters\\\":[ >> ${PARAMSFILE}",
+		"for env_var in ${!CNAB_PARAM_@};do NAME=${env_var#CNAB_PARAM_};echo ${SUFFIX}  >> ${PARAMSFILE};echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${PARAMSFILE};echo \\\"Source\\\": { >> ${PARAMSFILE};echo \\\"Env\\\": \\\"${env_var}\\\" >> ${PARAMSFILE};echo }} >> ${PARAMSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done",
+		"echo ]} >> ${PARAMSFILE}",
+		"cat ${PARAMSFILE}",
 		"CREDS=",
 		"SUFFIX=",
-		"for env_var in ${!CNAB_PARAM_@};do NAME=${env_var#CNAB_PARAM_};PARAMS=$(echo ${PARAMS} --param ${NAME}=$(echo ${!env_var}|sed -e s:\\\":\\':g)); done",
-		//"PARAMS=$(echo ${PARAMS}|sed -e s:\\\":\\\"\\\":g)",
 		"for env_var in ${!CNAB_CRED_FILE@};do NAME=${env_var#CNAB_CRED_FILE_};echo ${!env_var}|base64 -d > /tmp/${NAME}; done",
-		"if [[  ! -z  ${!CNAB_CRED_@} ]];then CREDSFILE=$(mktemp);CREDS=\" --cred ${CREDSFILE}\";echo {\\\"Name\\\": \\\"${2}\\\" , > ${CREDSFILE};echo \\\"Credentials\\\":[ >> ${CREDSFILE}; for env_var in ${!CNAB_CRED_@};do NAME=${env_var#CNAB_CRED_};echo ${SUFFIX};if [[ ${NAME} = FILE_* ]];then NAME=${NAME#FILE_};fi;echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${CREDSFILE};echo \\\"Source\\\": { >> ${CREDSFILE};if [[ ${env_var} = CNAB_CRED_FILE_* ]];then echo \\\"Path\\\": \\\"/tmp/${NAME}\\\" >> ${CREDSFILE};else echo \\\"EnvVar\\\": \\\"${env_var}\\\" >> ${CREDSFILE};fi; echo }} >> ${CREDSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done;echo ]} >> ${CREDSFILE};fi",
-		"cat ${CREDSFILE}",
-		fmt.Sprintf("porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --tag %s -d azure", tag),
+		"if [[  ! -z  ${!CNAB_CRED_@} ]];then CREDSFILE=$(mktemp);CREDS=\" --cred ${CREDSFILE}\";echo {\\\"Name\\\": \\\"${2}\\\" , > ${CREDSFILE};echo \\\"Credentials\\\":[ >> ${CREDSFILE}; for env_var in ${!CNAB_CRED_@};do NAME=${env_var#CNAB_CRED_};echo ${SUFFIX}>> ${CREDSFILE};if [[ ${NAME} = FILE_* ]];then NAME=${NAME#FILE_};fi;echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${CREDSFILE};echo \\\"Source\\\": { >> ${CREDSFILE};if [[ ${env_var} = CNAB_CRED_FILE_* ]];then echo \\\"Path\\\": \\\"/tmp/${NAME}\\\" >> ${CREDSFILE};else echo \\\"Env\\\": \\\"${env_var}\\\" >> ${CREDSFILE};fi; echo }} >> ${CREDSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done;echo ]} >> ${CREDSFILE};fi",
+		fmt.Sprintf("TAG=%s", tag),
+		"porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --tag ${TAG} -d azure",
+		//TODO deal with sensitve outputs
 		"OUTPUTS=$(porter inst outputs list -i \"${2}\" -o json)",
 		"if [[ -z ${OUTPUTS} ]]; then echo []|jq '{BundleOutputs: .}';  else echo $OUTPUTS|jq '{BundleOutputs: .}' > ${AZ_SCRIPTS_OUTPUT_PATH}; fi"}
 

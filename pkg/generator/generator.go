@@ -26,6 +26,8 @@ type GenerateOptions struct {
 	Indent            bool
 	Simplify          bool
 	ReplaceKubeconfig bool
+	Timeout           int
+
 	BundlePullOptions *porter.BundlePullOptions
 }
 
@@ -125,7 +127,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		bundleTag,
 		bundle.Outputs,
 		options.Simplify,
-	)
+		options.Timeout)
 
 	if err != nil {
 		return err

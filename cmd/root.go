@@ -6,6 +6,7 @@ import (
 
 	"get.porter.sh/porter/pkg/porter"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/generator"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ var overwrite bool
 var indent bool
 var simplify bool
 var replaceKubeconfig bool
+var timeout int
 var opts porter.BundlePullOptions
 
 var versionCmd = &cobra.Command{
@@ -38,6 +40,9 @@ var rootCmd = &cobra.Command{
 	Use:   "cnabtoarmtemplate",
 	Short: "Generates an ARM template for executing a CNAB package using Azure driver",
 	Long:  `Generates an ARM template which can be used to execute Porter in a deployment script, which in turn executes the CNAB Actions using the CNAB Azure Driver   `,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		return common.ValidateTimeout(timeout)
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
@@ -59,6 +64,7 @@ var rootCmd = &cobra.Command{
 				Indent:            indent,
 				Writer:            file,
 				Simplify:          simplify,
+				Timeout:           timeout,
 				ReplaceKubeconfig: replaceKubeconfig,
 				BundlePullOptions: &opts,
 			},
@@ -85,6 +91,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&indent, "indent", "i", false, "specifies if the json output should be indented")
 	rootCmd.Flags().BoolVarP(&simplify, "simplify", "s", false, "specifies if the ARM template should be simplified, exposing less parameters and inferring default values")
 	rootCmd.Flags().BoolVarP(&replaceKubeconfig, "replace", "r", false, "specifies if the ARM template generated should replace Kubeconfig Parameters with AKS references")
+	rootCmd.Flags().IntVar(&timeout, "timeout", 15, "specifies the time in minutes that is allowed for execution of the CNAB Action in the generated template")
 	rootCmd.Flags().StringVarP(&opts.Tag, "tag", "t", "", "Use a bundle specified by the given tag.")
 	rootCmd.Flags().BoolVar(&opts.Force, "force", false, "Force a fresh pull of the bundle")
 	rootCmd.Flags().BoolVar(&opts.InsecureRegistry, "insecure-registry", false, "Don't require TLS for the registry")

@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/docker/distribution/reference"
 	"github.com/go-chi/render"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/helpers"
+	log "github.com/sirupsen/logrus"
 )
 
 // BundleContextKey is the type used for the keys of items placed in the request context
@@ -25,6 +28,7 @@ type Bundle struct {
 	Force             bool
 	InsecureRegistry  bool
 	Simplyfy          bool
+	Timeout           int
 	ReplaceKubeconfig bool
 }
 
@@ -50,10 +54,11 @@ func BundleCtx(next http.Handler) http.Handler {
 		}
 		bundleContext := Bundle{
 			Ref:               imageName,
-			Force:             getQueryParam(r, "force"),
-			InsecureRegistry:  getQueryParam(r, "insecureregistry"),
-			Simplyfy:          getQueryParam(r, "simplyfy"),
-			ReplaceKubeconfig: getQueryParam(r, "useaks"),
+			Force:             getBoolQueryParam(r, "force"),
+			InsecureRegistry:  getBoolQueryParam(r, "insecureregistry"),
+			Simplyfy:          getBoolQueryParam(r, "simplyfy"),
+			Timeout:           getIntQueryParam(r, "timeout", 15),
+			ReplaceKubeconfig: getBoolQueryParam(r, "useaks"),
 		}
 
 		ctx := context.WithValue(r.Context(), BundleContext, &bundleContext)
@@ -61,12 +66,30 @@ func BundleCtx(next http.Handler) http.Handler {
 	})
 }
 
-func getQueryParam(r *http.Request, name string) bool {
+func getBoolQueryParam(r *http.Request, name string) bool {
 	result := false
 	for k, v := range r.URL.Query() {
 		// ignore multiple values
 		if strings.EqualFold(k, name) && (len(v[0]) == 0 || strings.ToLower(v[0]) == "true") {
 			result = true
+		}
+	}
+	return result
+}
+
+func getIntQueryParam(r *http.Request, name string, defaultValue int) int {
+	result := defaultValue
+	for k, v := range r.URL.Query() {
+		// ignore multiple values
+		if strings.EqualFold(k, name) && (len(v[0]) == 0) {
+			if val, err := strconv.Atoi(v[0]); err == nil {
+				if err = common.ValidateTimeout(val); err == nil {
+					result = val
+				} else {
+					log.Infof("%s. default value %d used", err, defaultValue)
+				}
+			}
+			log.Infof("Cannot convert %s to int for param %s, default value %d used", v[0], name, defaultValue)
 		}
 	}
 	return result
