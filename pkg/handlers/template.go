@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"get.porter.sh/porter/pkg/porter"
@@ -12,6 +13,7 @@ import (
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/generator"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/helpers"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/models"
+	log "github.com/sirupsen/logrus"
 )
 
 // NewTemplateHandler is the router for Template generation requests
@@ -29,6 +31,14 @@ func NewNestedDeploymentHandler() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(models.BundleCtx)
 	r.Get("/*", nestedDeploymentHandler)
+	return r
+}
+
+// NewNestedDeploymentHandler is the router for Nested Resource generation requests
+func NewRedirectHandler() chi.Router {
+	r := chi.NewRouter()
+	r.Use(models.BundleCtx)
+	r.Get("/*", redirectHandler)
 	return r
 }
 
@@ -83,4 +93,12 @@ func nestedDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate nested deployment for image: %s error: %v", bundle.Ref, err)))
 	}
+}
+
+func redirectHandler(w http.ResponseWriter, r *http.Request) {
+	originalRequestUri := r.Context().Value(common.RequestURIContext).(string)
+	templateUri := strings.Replace(originalRequestUri, models.RedirectPath, models.TemplateGeneratorPath, 1)
+	redirectURI := fmt.Sprintf("%s/%s", "https://portal.azure.com/#create/Microsoft.Template/uri", url.PathEscape(templateUri))
+	log.Infof("Redirecting %s to %s", originalRequestUri, redirectURI)
+	http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
 }

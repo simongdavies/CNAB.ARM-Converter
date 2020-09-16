@@ -20,6 +20,7 @@ type BundleContextKey string
 const (
 	TemplateGeneratorPath       string           = "/api/generate/template"
 	NestedResourceGeneratorPath string           = "/api/generate/deployment"
+	RedirectPath                string           = "/api/redirect"
 	BundleContext               BundleContextKey = "bundle"
 )
 

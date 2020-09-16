@@ -40,6 +40,7 @@ func Listen() {
 
 	router.Handle(models.TemplateGeneratorPath+"/*", handlers.NewTemplateHandler())
 	router.Handle(models.NestedResourceGeneratorPath+"/*", handlers.NewNestedDeploymentHandler())
+	router.Handle(models.RedirectPath+"/*", handlers.NewRedirectHandler())
 	log.Infof("Starting to listen on port  %s", port)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), router)
 	if err != nil {
