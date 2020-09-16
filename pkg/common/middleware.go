@@ -19,11 +19,7 @@ func SetOriginalRequestURI(next http.Handler) http.Handler {
 		if r.URL.IsAbs() && len(r.URL.Opaque) == 0 {
 			uri = r.URL.String()
 		} else {
-			scheme := "http"
-			if r.TLS != nil {
-				scheme = "https"
-			}
-			uri = fmt.Sprintf("%s://%s%s", scheme, r.Host, r.RequestURI)
+			uri = fmt.Sprintf("https://%s%s", r.Host, r.RequestURI)
 		}
 		log.Infof("Request URI: %s", uri)
 		ctx := context.WithValue(r.Context(), RequestURIContext, uri)
