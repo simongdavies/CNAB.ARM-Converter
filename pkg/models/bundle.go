@@ -73,6 +73,7 @@ func getBoolQueryParam(r *http.Request, name string) bool {
 		// ignore multiple values
 		if strings.EqualFold(k, name) && (len(v[0]) == 0 || strings.ToLower(v[0]) == "true") {
 			result = true
+			break
 		}
 	}
 	return result
@@ -82,15 +83,17 @@ func getIntQueryParam(r *http.Request, name string, defaultValue int) int {
 	result := defaultValue
 	for k, v := range r.URL.Query() {
 		// ignore multiple values
-		if strings.EqualFold(k, name) && (len(v[0]) == 0) {
+		if strings.EqualFold(k, name) && (len(v[0]) > 0) {
 			if val, err := strconv.Atoi(v[0]); err == nil {
 				if err = common.ValidateTimeout(val); err == nil {
 					result = val
 				} else {
 					log.Infof("%s. default value %d used", err, defaultValue)
 				}
+			} else {
+				log.Infof("Cannot convert %s to int for param %s, default value %d used", v[0], name, defaultValue)
 			}
-			log.Infof("Cannot convert %s to int for param %s, default value %d used", v[0], name, defaultValue)
+			break
 		}
 	}
 	return result
