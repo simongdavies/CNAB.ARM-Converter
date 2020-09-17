@@ -19,15 +19,17 @@ import (
 	"github.com/docker/distribution/reference"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/uidefinition"
 )
 
 type GenerateOptions struct {
-	Writer            io.Writer
+	OutputWriter      io.Writer
 	Indent            bool
 	Simplify          bool
 	ReplaceKubeconfig bool
+	GenerateUI        bool
 	Timeout           int
-
+	UIWriter          io.Writer
 	BundlePullOptions *porter.BundlePullOptions
 }
 
@@ -67,11 +69,11 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 
 		if !isCnabParam || (isCnabParam && !options.Simplify) {
 			if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == "kubeconfig" {
-				generatedDeployment.Properties.Parameters["aksResourceGroupName"] = template.ParameterValue{
-					Value: "TODO add value for aksResourceGroupName or delete this parameter to use default of current resource group",
+				generatedDeployment.Properties.Parameters[common.AKSResourceGroupParameterName] = template.ParameterValue{
+					Value: fmt.Sprintf("TODO add value for %s or delete this parameter to use default of current resource group", common.AKSResourceGroupParameterName),
 				}
-				generatedDeployment.Properties.Parameters["aksResourceName"] = template.ParameterValue{
-					Value: "TODO add value for aksResourceName",
+				generatedDeployment.Properties.Parameters[common.AKSResourceParameterName] = template.ParameterValue{
+					Value: fmt.Sprintf("TODO add value for %s", common.AKSResourceParameterName),
 				}
 			} else {
 				defaultValue, required := getDefaultValue(definition, parameter)
@@ -94,11 +96,11 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 	for _, credentialKey := range credentialKeys {
 		credential := bundle.Credentials[credentialKey]
 		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == "kubeconfig" {
-			generatedDeployment.Properties.Parameters["aksResourceGroupName"] = template.ParameterValue{
-				Value: "TODO add value for aksResourceGroupName or delete this parameter to use default of current resource group",
+			generatedDeployment.Properties.Parameters[common.AKSResourceGroupParameterName] = template.ParameterValue{
+				Value: fmt.Sprintf("TODO add value for %s or delete this parameter to use default of current resource group", common.AKSResourceGroupParameterName),
 			}
-			generatedDeployment.Properties.Parameters["aksResourceName"] = template.ParameterValue{
-				Value: "TODO add value for aksResourceName",
+			generatedDeployment.Properties.Parameters[common.AKSResourceParameterName] = template.ParameterValue{
+				Value: fmt.Sprintf("TODO add value for %s", common.AKSResourceParameterName),
 			}
 		} else {
 			defaultValue := fmt.Sprintf("TODO add value for %s", credentialKey)
@@ -111,15 +113,15 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 		}
 	}
 
-	return writeResponseData(options.Writer, generatedDeployment, options.Indent)
+	return common.WriteOutput(options.OutputWriter, generatedDeployment, options.Indent)
 }
 
 // GenerateTemplate generates ARM template from bundle metadata
-func GenerateTemplate(options GenerateTemplateOptions) error {
+func GenerateTemplate(options GenerateTemplateOptions) (*template.Template, *bundle.Bundle, error) {
 
 	bundle, bundleTag, err := getBundleDetails(options)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	generatedTemplate, err := template.NewCnabArmDriverTemplate(
@@ -130,12 +132,12 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		options.Timeout)
 
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	parameterKeys, err := getParameterKeys(*bundle)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	for _, parameterKey := range parameterKeys {
@@ -147,7 +149,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 
 		if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == "kubeconfig" {
-			paramEnvVar.SecureValue = "[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('aksResourceGroupName'),'Microsoft.ContainerService/managedClusters',parameters('aksResourceName')), '2020-09-01').kubeconfigs[0].value]"
+			paramEnvVar.SecureValue = fmt.Sprintf("[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('%s'),'Microsoft.ContainerService/managedClusters',parameters('%s')), '2020-09-01').kubeconfigs[0].value]", common.AKSResourceGroupParameterName, common.AKSResourceParameterName)
 			setAKSParameters(generatedTemplate, bundle)
 		} else if cnabParam, ok := isCnabParam(parameterKey); options.Simplify && ok {
 			paramEnvVar.Value = fmt.Sprintf("[variables('%s')]", cnabParam)
@@ -202,7 +204,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 
 			armType, err := toARMType(definition.Type.(string), isSensitive)
 			if err != nil {
-				return err
+				return nil, nil, err
 			}
 
 			generatedTemplate.Parameters[parameterKey] = template.Parameter{
@@ -225,13 +227,13 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 
 		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(paramEnvVar); err != nil {
-			return err
+			return nil, nil, err
 		}
 	}
 
 	credentialKeys, err := getCredentialKeys(*bundle)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	for _, credentialKey := range credentialKeys {
@@ -272,7 +274,7 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 
 		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == "kubeconfig" {
-			credEnvVar.SecureValue = "[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('aksResourceGroupName'),'Microsoft.ContainerService/managedClusters',parameters('aksResourceName')), '2020-09-01').kubeconfigs[0].value]"
+			credEnvVar.SecureValue = fmt.Sprintf("[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('%s'),'Microsoft.ContainerService/managedClusters',parameters('%s')), '2020-09-01').kubeconfigs[0].value]", common.AKSResourceGroupParameterName, common.AKSResourceParameterName)
 			setAKSParameters(generatedTemplate, bundle)
 		} else {
 			if cnabParam, ok := isCnabParam(credentialKey); options.Simplify && ok {
@@ -288,24 +290,52 @@ func GenerateTemplate(options GenerateTemplateOptions) error {
 		}
 
 		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(credEnvVar); err != nil {
-			return err
+			return nil, nil, err
 		}
 
 	}
+	return generatedTemplate, bundle, nil
+}
 
-	return writeResponseData(options.Writer, generatedTemplate, options.Indent)
+func GenerateFiles(options GenerateTemplateOptions, outputFile *os.File, uiFile *os.File) error {
 
+	generatedTemplate, bundle, err := GenerateTemplate(options)
+	if err != nil {
+		return fmt.Errorf("Error generating template: %w", err)
+	}
+
+	err = common.WriteOutput(options.OutputWriter, generatedTemplate, options.Indent)
+	if err != nil {
+		return fmt.Errorf("Error writing output file: %w", err)
+	}
+
+	err = outputFile.Sync()
+	if err != nil {
+		return fmt.Errorf("Error saving output file: %w", err)
+	}
+
+	if options.GenerateUI {
+		ui := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig)
+		if err := common.WriteOutput(options.UIWriter, ui, options.Indent); err != nil {
+			return fmt.Errorf("Failed to write ui definition output, %w", err)
+		}
+		err = uiFile.Sync()
+		if err != nil {
+			return fmt.Errorf("Error saving UI Definition file: %w", err)
+		}
+	}
+	return nil
 }
 
 func setAKSParameters(generatedTemplate *template.Template, bundle *bundle.Bundle) {
-	generatedTemplate.Parameters["aksResourceGroupName"] = template.Parameter{
+	generatedTemplate.Parameters[common.AKSResourceGroupParameterName] = template.Parameter{
 		Type: "string",
 		Metadata: &template.Metadata{
 			Description: fmt.Sprintf("The resource group that contains the AKS Cluster to deploy bundle %s to", bundle.Name),
 		},
 		DefaultValue: "[resourceGroup().Name]",
 	}
-	generatedTemplate.Parameters["aksResourceName"] = template.Parameter{
+	generatedTemplate.Parameters[common.AKSResourceParameterName] = template.Parameter{
 		Type: "string",
 		Metadata: &template.Metadata{
 			Description: fmt.Sprintf("The name of the AKS Cluster to deploy bundle %s to", bundle.Name),
@@ -512,13 +542,13 @@ func getDefaultValue(definition *definition.Schema, parameter bundle.Parameter) 
 	return defaultValue, parameter.Required
 }
 
-func writeResponseData(writer io.Writer, response interface{}, indent bool) error {
+func WriteOutput(writer io.Writer, data interface{}, indent bool) error {
 	encoder := json.NewEncoder(writer)
 	encoder.SetEscapeHTML(false)
 	if indent {
 		encoder.SetIndent("", "\t")
 	}
-	err := encoder.Encode(response)
+	err := encoder.Encode(data)
 
 	if err != nil {
 		return fmt.Errorf("Error writing response: %w", err)

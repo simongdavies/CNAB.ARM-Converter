@@ -1,0 +1,85 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "isWizard": false,
+      "basics": {
+        "description": "Customized description with **markdown**, see [more](https://www.microsoft.com).",
+        "resourceGroup": {
+          "allowExisting": true
+        },
+        "location": {
+          "label": "Location for running CNAB Action",
+          "toolTip": "This is the location where the deployment to execute the CNAB Action is run",
+          "resourceTypes": [
+            "Microsoft.ContainerInstance/containerGroups"
+          ],
+          "visible": true
+        }
+      }
+    },
+    "basics": [
+      {
+        "name": "text1",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": true,
+        "options": {
+          "icon": "None",
+          "text": "Nullam eros mi, mollis in sollicitudin non, tincidunt sed enim. Sed et felis metus, rhoncus ornare nibh. Ut at magna leo.",
+          "uri": "https://www.microsoft.com"
+        }
+      },
+      {
+        "name": "AKSSelector",
+        "type": "Microsoft.Solutions.ResourceSelector",
+        "label": "Select AKS Cluster",
+        "resourceType": "Microsoft.ContainerService/managedClusters",
+        "options": {
+          "filter": {
+            "subscription": "onBasics",
+            "location": "all"
+          }
+        }
+      },
+      {
+        "name": "element1",
+        "type": "Microsoft.Compute.UserNameTextBox",
+        "label": "User name",
+        "defaultValue": "",
+        "toolTip": "",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z0-9A-Z]{1,30}$",
+          "validationMessage": "Only alphanumeric characters are allowed, and the value must be 1-30 characters long."
+        },
+        "osPlatform": "Windows",
+        "visible": true
+      },
+      {
+        "name": "element2",
+        "type": "Microsoft.Common.PasswordBox",
+        "label": {
+          "password": "Password",
+          "confirmPassword": "Confirm password"
+        },
+        "toolTip": "",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-zA-Z0-9]{8,}$",
+          "validationMessage": "Password must be at least 8 characters long, contain only numbers and letters"
+        },
+        "options": {
+          "hideConfirmation": false
+        },
+        "visible": true
+      }
+    ],
+    "steps": [],
+    "outputs": {
+      "resourceGroup" : "[resourceGroup().name]",
+      "tagsByResource": "[steps('basics').AKSSelector.value.name]"
+    }
+  }
+}

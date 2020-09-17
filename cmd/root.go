@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 
 	"get.porter.sh/porter/pkg/porter"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg"
@@ -12,10 +14,11 @@ import (
 )
 
 var fileloc string
-var outputloc string
+var outputFileName string
 var overwrite bool
 var indent bool
 var simplify bool
+var customUI bool
 var replaceKubeconfig bool
 var timeout int
 var opts porter.BundlePullOptions
@@ -36,6 +39,19 @@ var listenCmd = &cobra.Command{
 	},
 }
 
+func getFile(fileName string, overwrite bool) (*os.File, error) {
+	if err := checkOutputFile(fileName, overwrite); err != nil {
+		return nil, err
+	}
+
+	outputFile, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0644)
+
+	if err != nil {
+		return nil, fmt.Errorf("Error opening output file: %w", err)
+	}
+	return outputFile, nil
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "cnabtoarmtemplate",
 	Short: "Generates an ARM template for executing a CNAB package using Azure driver",
@@ -46,38 +62,42 @@ var rootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
-		if err := checkOutputFile(outputloc, overwrite); err != nil {
+		outputFile, err := getFile(outputFileName, overwrite)
+		if err != nil {
 			return err
 		}
 
-		file, err := os.OpenFile(outputloc, os.O_RDWR|os.O_CREATE, 0644)
+		defer outputFile.Close()
 
-		if err != nil {
-			return fmt.Errorf("Error opening output file: %w", err)
+		var uiFile *os.File
+
+		if customUI {
+			uiFileName := path.Join(filepath.Dir(outputFileName), "createUIDefinition.json")
+			uiFile, err = getFile(uiFileName, overwrite)
+			if err != nil {
+				return err
+			}
+
+			defer uiFile.Close()
 		}
-
-		defer file.Close()
 
 		options := generator.GenerateTemplateOptions{
 			BundleLoc: fileloc,
 			GenerateOptions: generator.GenerateOptions{
 				Indent:            indent,
-				Writer:            file,
+				OutputWriter:      outputFile,
 				Simplify:          simplify,
 				Timeout:           timeout,
+				GenerateUI:        customUI,
+				UIWriter:          uiFile,
 				ReplaceKubeconfig: replaceKubeconfig,
 				BundlePullOptions: &opts,
 			},
 		}
 
-		err = generator.GenerateTemplate(options)
+		err = generator.GenerateFiles(options, outputFile, uiFile)
 		if err != nil {
 			return fmt.Errorf("Error generating template: %w", err)
-		}
-
-		err = file.Sync()
-		if err != nil {
-			return fmt.Errorf("Error saving output file: %w", err)
 		}
 
 		return nil
@@ -86,9 +106,10 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVarP(&fileloc, "file", "f", "bundle.json", "name of bundle file to generate template for , default is bundle.json in the current directory")
-	rootCmd.Flags().StringVarP(&outputloc, "output", "o", "azuredeploy.json", "file name for generated template,default is azuredeploy.json")
+	rootCmd.Flags().StringVarP(&outputFileName, "output", "o", "azuredeploy.json", "file name for generated template,default is azuredeploy.json")
 	rootCmd.Flags().BoolVar(&overwrite, "overwrite", false, "specifies if to overwrite the output file if it already exists, default is false")
 	rootCmd.Flags().BoolVarP(&indent, "indent", "i", false, "specifies if the json output should be indented")
+	rootCmd.Flags().BoolVarP(&customUI, "customuidef", "c", false, "generates a custom createUIDefinition file called createUIdefinition.json in the same directory as the template")
 	rootCmd.Flags().BoolVarP(&simplify, "simplify", "s", false, "specifies if the ARM template should be simplified, exposing less parameters and inferring default values")
 	rootCmd.Flags().BoolVarP(&replaceKubeconfig, "replace", "r", false, "specifies if the ARM template generated should replace Kubeconfig Parameters with AKS references")
 	rootCmd.Flags().IntVar(&timeout, "timeout", 15, "specifies the time in minutes that is allowed for execution of the CNAB Action in the generated template")

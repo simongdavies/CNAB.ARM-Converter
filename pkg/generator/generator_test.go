@@ -27,13 +27,13 @@ func TestGenerateTemplate(t *testing.T) {
 	options := GenerateTemplateOptions{
 		BundleLoc: bundlePath,
 		GenerateOptions: GenerateOptions{
-			Indent:   true,
-			Writer:   file,
-			Simplify: true,
+			Indent:       true,
+			OutputWriter: file,
+			Simplify:     true,
 		},
 	}
 
-	err = GenerateTemplate(options)
+	_, _, err = GenerateTemplate(options)
 	if err != nil {
 		t.Errorf("GenerateTemplate failed: %s", err.Error())
 	}
@@ -72,13 +72,13 @@ func TestGenerateSimpleTemplate(t *testing.T) {
 	options := GenerateTemplateOptions{
 		BundleLoc: bundlePath,
 		GenerateOptions: GenerateOptions{
-			Indent:   true,
-			Writer:   file,
-			Simplify: true,
+			Indent:       true,
+			OutputWriter: file,
+			Simplify:     true,
 		},
 	}
 
-	err = GenerateTemplate(options)
+	err = GenerateFiles(options, file, nil)
 	if err != nil {
 		t.Errorf("GenerateTemplate failed: %s", err.Error())
 	}

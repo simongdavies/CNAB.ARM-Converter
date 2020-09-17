@@ -55,17 +55,22 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 		BundleLoc: "",
 		GenerateOptions: generator.GenerateOptions{
 			Indent:            true,
-			Writer:            w,
+			OutputWriter:      w,
 			Simplify:          bundle.Simplyfy,
 			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
 			BundlePullOptions: &opts,
 			Timeout:           bundle.Timeout,
 		},
 	}
-	err := generator.GenerateTemplate(options)
+	generatedTemplate, _, err := generator.GenerateTemplate(options)
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate template for image: %s error: %v", bundle.Ref, err)))
 	}
+	err = common.WriteOutput(w, generatedTemplate, options.Indent)
+	if err != nil {
+		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to write template to response for image: %s error: %v", bundle.Ref, err)))
+	}
+
 }
 
 func nestedDeploymentHandler(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +86,7 @@ func nestedDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	options := generator.GenerateNestedDeploymentOptions{
 		GenerateOptions: generator.GenerateOptions{
 			Indent:            true,
-			Writer:            w,
+			OutputWriter:      w,
 			Simplify:          bundle.Simplyfy,
 			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
 			BundlePullOptions: &opts,

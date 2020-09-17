@@ -21,6 +21,8 @@ const (
 	TemplateGeneratorPath       string           = "/api/generate/template"
 	NestedResourceGeneratorPath string           = "/api/generate/deployment"
 	RedirectPath                string           = "/api/redirect"
+	UIRedirectPath              string           = "/api/customui"
+	UIDefPath                   string           = "/api/generate/uidef"
 	BundleContext               BundleContextKey = "bundle"
 )
 
@@ -40,6 +42,7 @@ func BundleCtx(next http.Handler) http.Handler {
 
 		imageName := strings.TrimPrefix(r.URL.Path, TemplateGeneratorPath)
 		imageName = strings.TrimPrefix(imageName, NestedResourceGeneratorPath)
+		imageName = strings.TrimPrefix(imageName, UIDefPath)
 		imageName = strings.TrimPrefix(imageName, "/")
 
 		if len(imageName) == 0 {
