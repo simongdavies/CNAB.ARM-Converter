@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,45 +9,23 @@ import (
 	"sort"
 	"strings"
 
-	"get.porter.sh/porter/pkg/porter"
 	"github.com/cnabio/cnab-go/bundle"
 	"github.com/cnabio/cnab-go/bundle/definition"
-	"github.com/cnabio/cnab-to-oci/relocation"
-	"github.com/cnabio/cnab-to-oci/remotes"
-	"github.com/docker/cli/cli/config"
-	"github.com/docker/distribution/reference"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/uidefinition"
 )
 
-type GenerateOptions struct {
-	OutputWriter      io.Writer
-	Indent            bool
-	Simplify          bool
-	ReplaceKubeconfig bool
-	GenerateUI        bool
-	Timeout           int
-	UIWriter          io.Writer
-	BundlePullOptions *porter.BundlePullOptions
-}
-
 // GenerateNestedDeploymentOptions is the set of options for configuring GenerateNestedDeployment
 type GenerateNestedDeploymentOptions struct {
 	Uri string
-	GenerateOptions
-}
-
-// GenerateTemplateOptions is the set of options for configuring GenerateTemplate
-type GenerateTemplateOptions struct {
-	BundleLoc string
-	GenerateOptions
+	common.Options
 }
 
 // GenerateTemplate generates ARM template from bundle metadata
 func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 
-	bundle, err := getBundleFromTag(options.BundlePullOptions)
+	bundle, err := common.GetBundleFromTag(options.BundlePullOptions)
 	if err != nil {
 		return err
 	}
@@ -117,9 +94,9 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 }
 
 // GenerateTemplate generates ARM template from bundle metadata
-func GenerateTemplate(options GenerateTemplateOptions) (*template.Template, *bundle.Bundle, error) {
+func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle.Bundle, error) {
 
-	bundle, bundleTag, err := getBundleDetails(options)
+	bundle, bundleTag, err := common.GetBundleDetails(options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -297,7 +274,7 @@ func GenerateTemplate(options GenerateTemplateOptions) (*template.Template, *bun
 	return generatedTemplate, bundle, nil
 }
 
-func GenerateFiles(options GenerateTemplateOptions, outputFile *os.File, uiFile *os.File) error {
+func GenerateFiles(options common.BundleDetails, outputFile *os.File, uiFile *os.File) error {
 
 	generatedTemplate, bundle, err := GenerateTemplate(options)
 	if err != nil {
@@ -315,10 +292,15 @@ func GenerateFiles(options GenerateTemplateOptions, outputFile *os.File, uiFile 
 	}
 
 	if options.GenerateUI {
-		ui := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig)
-		if err := common.WriteOutput(options.UIWriter, ui, options.Indent); err != nil {
+		ui, err := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundle.Custom)
+		if err != nil {
+			return fmt.Errorf("Failed to gernerate UI definition, %w", err)
+		}
+
+		if err = common.WriteOutput(options.UIWriter, ui, options.Indent); err != nil {
 			return fmt.Errorf("Failed to write ui definition output, %w", err)
 		}
+
 		err = uiFile.Sync()
 		if err != nil {
 			return fmt.Errorf("Error saving UI Definition file: %w", err)
@@ -343,29 +325,6 @@ func setAKSParameters(generatedTemplate *template.Template, bundle *bundle.Bundl
 	}
 }
 
-func getBundleDetails(options GenerateTemplateOptions) (*bundle.Bundle, string, error) {
-	useTag := false
-
-	if options.BundlePullOptions.Tag != "" {
-		useTag = true
-	}
-
-	bundle, err := getBundle(options.BundleLoc, useTag, options.BundlePullOptions)
-	if err != nil {
-		return nil, "", err
-	}
-
-	bundleTag := options.BundlePullOptions.Tag
-	if !useTag {
-		var err error
-		bundleTag, err = getBundleTag(bundle)
-		if err != nil {
-			return nil, "", err
-		}
-	}
-	return bundle, bundleTag, nil
-}
-
 func isCnabParam(parameterKey string) (string, bool) {
 	cnabKey := "cnab_" + parameterKey
 
@@ -376,33 +335,6 @@ func isCnabParam(parameterKey string) (string, bool) {
 	}
 	return "", false
 
-}
-
-func getBundleTag(bundle *bundle.Bundle) (string, error) {
-	for _, i := range bundle.InvocationImages {
-		if i.ImageType == "docker" {
-			ref, err := reference.ParseNamed(i.Image)
-			if err != nil {
-				return "", fmt.Errorf("Cannot parse invocationImage reference: %s %w", i.Image, err)
-			}
-
-			bundleTag := ref.Name() + "/bundle"
-
-			if tagged, ok := ref.(reference.Tagged); ok {
-				bundleTag += ":"
-				bundleTag += tagged.Tag()
-			}
-
-			if digested, ok := ref.(reference.Digested); ok {
-				bundleTag += "@"
-				bundleTag += digested.Digest().String()
-			}
-
-			return bundleTag, nil
-		}
-	}
-
-	return "", fmt.Errorf("Cannot get bundle name from invocationImages: %v", bundle.InvocationImages)
 }
 
 func toARMType(jsonType string, isSensitive bool) (string, error) {
@@ -427,58 +359,6 @@ func toARMType(jsonType string, isSensitive bool) (string, error) {
 	}
 
 	return armType, err
-}
-func getBundleFromTag(bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
-	// TODO deal with relocationMap
-	bun, _, err := pullBundle(bundleOptions.Tag, bundleOptions.InsecureRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to pull bundle with tag: %s. %w", bundleOptions.Tag, err)
-	}
-	return &bun, nil
-}
-
-func getBundle(source string, useTag bool, bundleOptions *porter.BundlePullOptions) (*bundle.Bundle, error) {
-	if useTag {
-		return getBundleFromTag(bundleOptions)
-	}
-
-	return getBundleFromFile(source)
-}
-
-func getBundleFromFile(source string) (*bundle.Bundle, error) {
-	_, err := os.Stat(source)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to access bundle file: %s. %w", source, err)
-	}
-	jsonFile, _ := os.Open(source)
-	bun, err := bundle.ParseReader(jsonFile)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to parse bundle file: %s. %w", source, err)
-	}
-	return &bun, nil
-}
-
-func pullBundle(tag string, insecureRegistry bool) (bundle.Bundle, *relocation.ImageRelocationMap, error) {
-	ref, err := reference.ParseNormalizedNamed(tag)
-	if err != nil {
-		return bundle.Bundle{}, nil, fmt.Errorf("Invalid bundle tag format, expected REGISTRY/name:tag %w", err)
-	}
-
-	var insecureRegistries []string
-	if insecureRegistry {
-		reg := reference.Domain(ref)
-		insecureRegistries = append(insecureRegistries, reg)
-	}
-
-	bun, reloMap, err := remotes.Pull(context.Background(), ref, remotes.CreateResolver(config.LoadDefaultConfigFile(os.Stderr), insecureRegistries...))
-	if err != nil {
-		return bundle.Bundle{}, nil, fmt.Errorf("Unable to pull remote bundle %w", err)
-	}
-
-	if len(reloMap) == 0 {
-		return *bun, nil, nil
-	}
-	return *bun, &reloMap, nil
 }
 
 func getParameterKeys(bundle bundle.Bundle) ([]string, error) {

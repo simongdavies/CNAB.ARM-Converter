@@ -10,10 +10,11 @@ import (
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/generator"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
-var fileloc string
+var bundleFileName string
 var outputFileName string
 var overwrite bool
 var indent bool
@@ -39,8 +40,38 @@ var listenCmd = &cobra.Command{
 	},
 }
 
+var getbundleCmd = &cobra.Command{
+	Use:   "getbundle",
+	Short: "Gets Bundle file for a tag",
+	RunE: func(cmd *cobra.Command, args []string) error {
+
+		bundle, _, err := common.PullBundle(&opts)
+		if err != nil {
+			return err
+		}
+
+		outputFile, err := getFile(bundleFileName, overwrite)
+		if err != nil {
+			return err
+		}
+		defer outputFile.Close()
+
+		err = common.WriteOutput(outputFile, bundle, indent)
+		if err != nil {
+			return fmt.Errorf("Error writing bundle file: %w", err)
+		}
+
+		err = outputFile.Sync()
+		if err != nil {
+			return fmt.Errorf("Error saving bundles file: %w", err)
+		}
+
+		return nil
+	},
+}
+
 func getFile(fileName string, overwrite bool) (*os.File, error) {
-	if err := checkOutputFile(fileName, overwrite); err != nil {
+	if err := checkFile(fileName, overwrite); err != nil {
 		return nil, err
 	}
 
@@ -81,9 +112,9 @@ var rootCmd = &cobra.Command{
 			defer uiFile.Close()
 		}
 
-		options := generator.GenerateTemplateOptions{
-			BundleLoc: fileloc,
-			GenerateOptions: generator.GenerateOptions{
+		options := common.BundleDetails{
+			BundleLoc: bundleFileName,
+			Options: common.Options{
 				Indent:            indent,
 				OutputWriter:      outputFile,
 				Simplify:          simplify,
@@ -105,7 +136,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&fileloc, "file", "f", "bundle.json", "name of bundle file to generate template for , default is bundle.json in the current directory")
+
+	rootCmd.Flags().StringVarP(&bundleFileName, "file", "f", "bundle.json", "name of bundle file to generate template for , default is bundle.json in the current directory")
 	rootCmd.Flags().StringVarP(&outputFileName, "output", "o", "azuredeploy.json", "file name for generated template,default is azuredeploy.json")
 	rootCmd.Flags().BoolVar(&overwrite, "overwrite", false, "specifies if to overwrite the output file if it already exists, default is false")
 	rootCmd.Flags().BoolVarP(&indent, "indent", "i", false, "specifies if the json output should be indented")
@@ -118,6 +150,17 @@ func init() {
 	rootCmd.Flags().BoolVar(&opts.InsecureRegistry, "insecure-registry", false, "Don't require TLS for the registry")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(listenCmd)
+	getbundleCmd.Flags().StringVarP(&bundleFileName, "file", "f", "bundle.json", "name of bundle file to write , default is bundle.json in the current directory")
+	getbundleCmd.Flags().BoolVar(&overwrite, "overwrite", false, "specifies if to overwrite the output file if it already exists, default is false")
+	getbundleCmd.Flags().StringVarP(&opts.Tag, "tag", "t", "", "Bundle tag to get bundle.json for.")
+	getbundleCmd.Flags().BoolVar(&opts.Force, "force", false, "Force a fresh pull of the bundle")
+	getbundleCmd.Flags().BoolVar(&opts.InsecureRegistry, "insecure-registry", false, "Don't require TLS for the registry")
+	getbundleCmd.Flags().BoolVarP(&indent, "indent", "i", false, "specifies if the json output should be indented")
+	err := getbundleCmd.MarkFlagRequired("tag")
+	if err != nil {
+		log.Infof("Error making Flag tag required: %v", err)
+	}
+	rootCmd.AddCommand(getbundleCmd)
 }
 
 // Execute runs the template generator
@@ -132,7 +175,7 @@ func Version() string {
 	return fmt.Sprintf("%v-%v", pkg.Version, pkg.Commit)
 }
 
-func checkOutputFile(dest string, overwrite bool) error {
+func checkFile(dest string, overwrite bool) error {
 	if _, err := os.Stat(dest); err == nil {
 		if !overwrite {
 			return fmt.Errorf("File %s exists and overwrite not specified", dest)

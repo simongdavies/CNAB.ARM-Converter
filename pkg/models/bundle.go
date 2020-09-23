@@ -22,6 +22,7 @@ const (
 	NestedResourceGeneratorPath string           = "/api/generate/deployment"
 	RedirectPath                string           = "/api/redirect"
 	UIRedirectPath              string           = "/api/customui"
+	BundlePath                  string           = "/api/bundle"
 	UIDefPath                   string           = "/api/generate/uidef"
 	BundleContext               BundleContextKey = "bundle"
 )

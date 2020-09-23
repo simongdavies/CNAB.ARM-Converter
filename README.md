@@ -12,6 +12,8 @@ The template will also configure porter to use the azure storage plugin for stat
 
 ## Usage
 
+### CLI
+
 Generating the ARM template
 
 ```shell
@@ -20,11 +22,13 @@ Usage:
   cnabtoarmtemplate [command]
 
 Available Commands:
+  getbundle   Gets Bundle file for a tag
   help        Help about any command
   listen      Starts an http server to listen for request for template generation
   version     Print the cnabtoarmtemplate version
 
 Flags:
+  -c, --customuidef         generates a custom createUIDefinition file called createUIdefinition.json in the same directory as the template
   -f, --file string         name of bundle file to generate template for , default is bundle.json in the current directory (default "bundle.json")
       --force               Force a fresh pull of the bundle
   -h, --help                help for cnabtoarmtemplate

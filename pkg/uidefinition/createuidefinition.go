@@ -123,7 +123,13 @@ type UserPasswordConstraints struct {
 }
 
 type TextBoxConstraints struct {
-	Required bool `json:"required,omitempty"`
+	Required    bool                 `json:"required,omitempty"`
+	Validations []TextboxValidations `json:"validations,omitempty"`
+}
+
+type TextboxValidations struct {
+	Regex   string `json:"regex,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type PasswordLabel struct {
@@ -133,4 +139,29 @@ type PasswordLabel struct {
 
 type PasswordOptions struct {
 	HideConfirmation bool `json:"hideConfirmation,omitempty"`
+}
+
+type CustomSetting struct {
+	Name              string `json:"name,omitempty"`
+	DisplayName       string `json:"displayName,omitempty"`
+	DisplayOrder      int    `json:"displayOrder,omitempty"`
+	UIType            string `json:"uitype,omitempty"`
+	ValidationRegex   string `json:"validationRegex,omitempty"`
+	ValidationMessage string `json:"validationMessage,omitempty"`
+	Tooltip           string `json:"toolTip,omitempty"`
+	Bladename         string `json:"bladeName,omitempty"`
+}
+
+type CustomSettings []CustomSetting
+
+func (c CustomSettings) Len() int {
+	return len(c)
+}
+
+func (c CustomSettings) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c CustomSettings) Less(i, j int) bool {
+	return c[i].DisplayOrder < c[j].DisplayOrder
 }

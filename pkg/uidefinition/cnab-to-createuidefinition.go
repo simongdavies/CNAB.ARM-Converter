@@ -1,15 +1,17 @@
 package uidefinition
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 )
 
-func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool) *CreateUIDefinition {
+func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}) (*CreateUIDefinition, error) {
 	UIDef := CreateUIDefinition{
 		Schema:  "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
 		Handler: "Microsoft.Azure.CreateUIDef",
@@ -75,10 +77,13 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		},
 	}
 	outputs := map[string]string{}
-	elements := []Element{}
-	optionalElements := []Element{}
+
+	elementsMap := map[string][]Element{}
+	elementsMap["basics"] = []Element{}
+	elementsMap["Additional"] = []Element{}
+
 	if _, aks := generatedTemplate.Parameters[common.AKSResourceParameterName]; aks && useAKS {
-		elements = append(elements, Element{
+		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "aksSelector",
 			Type:         "Microsoft.Solutions.ResourceSelector",
 			Label:        "Select AKS Cluster",
@@ -97,91 +102,114 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		outputs[common.AKSResourceParameterName] = "[steps('basics').aksSelector.name]"
 	}
 
-	for name, val := range generatedTemplate.Parameters {
-		if name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName {
-			continue
+	settings := make(CustomSettings, 0)
+	if customSettings := custom["com.azure.creatuidef"]; customSettings != nil {
+		jsonData, err := json.Marshal(custom["com.azure.creatuidef"])
+		if err != nil {
+			return nil, fmt.Errorf("Unable to serialise Custom UI settings to JSON %w", err)
+		}
+		err = json.Unmarshal(jsonData, &settings)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to de-serialise Custom UI settings from JSON %w", err)
 		}
 
-		switch {
-		case strings.Contains(strings.ToLower(name), "user"):
-			elements = append(elements, Element{
-				Name:         name,
-				Type:         "Microsoft.Compute.UserNameTextBox",
-				Label:        trimLabel(val.Metadata.Description),
-				Tooltip:      val.Metadata.Description,
-				Visible:      true,
-				DefaultValue: val.DefaultValue,
-				Constraints: UserPasswordConstraints{
-					Required: isRequired(val.DefaultValue),
-				},
-				OsPlatform: Linux.String(),
-			})
-			outputs[name] = fmt.Sprintf("[steps('basics').%s]", name)
+		sort.Sort(settings)
 
-		case strings.Contains(strings.ToLower(name), "password"):
-			elements = append(elements, Element{
-				Name: name,
-				Type: "Microsoft.Common.PasswordBox",
-				Label: PasswordLabel{
-					Password:        trimLabel(val.Metadata.Description),
-					ConfirmPassword: fmt.Sprintf("Confirm %s", trimLabel(val.Metadata.Description)),
-				},
-				Tooltip: val.Metadata.Description,
-				Visible: true,
-				Constraints: UserPasswordConstraints{
-					Required: isRequired(val.DefaultValue),
-				},
-				Options: PasswordOptions{
-					HideConfirmation: false,
-				},
-			})
-			outputs[name] = fmt.Sprintf("[steps('basics').%s]", name)
+		allSettings := []CustomSettings{
+			// OrderedElements
+			make(CustomSettings, 0),
+			// UnorderedElements
+			make(CustomSettings, 0),
+		}
 
-		default:
-			if isRequired(val.DefaultValue) {
-				elements = append(elements, Element{
-					Name:        name,
-					Type:        "Microsoft.Common.TextBox",
-					Label:       trimLabel(val.Metadata.Description),
-					Tooltip:     val.Metadata.Description,
-					Visible:     true,
-					Placeholder: fmt.Sprintf("Provide value for %s", trimLabel(val.Metadata.Description)),
-					Constraints: TextBoxConstraints{
-						Required: true,
-					},
-				})
-				outputs[name] = fmt.Sprintf("[steps('basics').%s]", name)
+		for _, val := range settings {
+			// Only process setting if the parameter is in the template
+			if _, ok := generatedTemplate.Parameters[val.Name]; !ok {
+				continue
+			}
+			// two arrays first contains display ordered settings, second contains settings with no order
+			if val.DisplayOrder > 0 {
+				allSettings[0] = append(allSettings[0], val)
 			} else {
-				optionalElements = append(optionalElements, Element{
-					Name:         name,
-					Type:         "Microsoft.Common.TextBox",
-					Label:        trimLabel(val.Metadata.Description),
-					Tooltip:      val.Metadata.Description,
-					Visible:      true,
-					DefaultValue: getDefaultValue(val.DefaultValue),
-					Placeholder:  fmt.Sprintf("Provide value for %s", trimLabel(val.Metadata.Description)),
-					Constraints: TextBoxConstraints{
-						Required: false,
-					},
-				})
-				outputs[name] = fmt.Sprintf("[steps('AdditionalParameters').%s]", name)
+				allSettings[1] = append(allSettings[1], val)
+			}
+		}
+
+		for _, filteredSettings := range allSettings {
+
+			for _, val := range filteredSettings {
+				step := "basics"
+				if len(val.Bladename) > 0 {
+					step = val.Bladename
+					if _, ok := elementsMap[step]; !ok {
+						elementsMap[step] = make([]Element, 0)
+					}
+				}
+				tooltip := trimLabel(generatedTemplate.Parameters[val.Name].Metadata.Description)
+				if len(val.Tooltip) > 0 {
+					tooltip = val.Tooltip
+				}
+				switch {
+				case strings.Contains(strings.ToLower(val.Name), "user") || strings.ToLower(val.UIType) == "microsoft.compute.usernametextbox":
+					elementsMap[step] = append(elementsMap[step], createUserNameTextBox(val.Name, val.DisplayName, tooltip, generatedTemplate.Parameters[val.Name].DefaultValue, val.ValidationRegex, val.ValidationMessage))
+
+				case strings.Contains(strings.ToLower(val.Name), "password") || strings.ToLower(val.UIType) == "microsoft.common.passwordbox":
+					elementsMap[step] = append(elementsMap[step], createPasswordBox(val.Name, val.DisplayName, tooltip, generatedTemplate.Parameters[val.Name].DefaultValue, val.ValidationRegex, val.ValidationMessage))
+
+				case strings.ToLower(val.UIType) == "microsoft.common.textbox":
+					fallthrough
+
+				default:
+					elementsMap[step] = append(elementsMap[step], createTextBox(val.Name, val.DisplayName, tooltip, generatedTemplate.Parameters[val.Name].DefaultValue, isRequired(generatedTemplate.Parameters[val.Name].DefaultValue), "", ""))
+
+				}
+				outputs[val.Name] = fmt.Sprintf("[steps('%s').%s]", step, val.Name)
 			}
 		}
 	}
 
-	if len(optionalElements) > 0 {
-		UIDef.Parameters.Steps = []Step{
-			{
-				Name:     "AdditionalParameters",
-				Label:    fmt.Sprintf("Addition Parameters for %s", trimLabel(bundleName)),
-				Elements: optionalElements,
-			},
+	for name, val := range generatedTemplate.Parameters {
+		// Skip any parameters with custom ui
+		if sort.Search(len(settings), func(i int) bool { return settings[i].Name == name }) > 0 || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName {
+			continue
+		}
+
+		step := "basics"
+		switch {
+		case strings.Contains(strings.ToLower(name), "user"):
+			elementsMap["basics"] = append(elementsMap["basics"], createUserNameTextBox(name, trimLabel(val.Metadata.Description), val.Metadata.Description, val.DefaultValue, "", ""))
+
+		case strings.Contains(strings.ToLower(name), "password"):
+			elementsMap["basics"] = append(elementsMap["basics"], createPasswordBox(name, trimLabel(val.Metadata.Description), val.Metadata.Description, val.DefaultValue, "", ""))
+
+		default:
+			element := createTextBox(name, trimLabel(val.Metadata.Description), val.Metadata.Description, getDefaultValue(val.DefaultValue), isRequired(val.DefaultValue), "", "")
+			if !isRequired(val.DefaultValue) {
+				step = "Additional"
+			}
+			elementsMap[step] = append(elementsMap[step], element)
+		}
+		outputs[name] = fmt.Sprintf("[steps('%s').%s]", step, name)
+
+	}
+
+	for k, v := range elementsMap {
+		if k == "basics" {
+			UIDef.Parameters.Basics = v
+		} else {
+			if len(v) > 0 {
+				step := Step{
+					Name:     k,
+					Label:    fmt.Sprintf("%s Parameters for %s", k, trimLabel(bundleName)),
+					Elements: v,
+				}
+				UIDef.Parameters.Steps = append(UIDef.Parameters.Steps, step)
+			}
 		}
 	}
 
-	UIDef.Parameters.Basics = elements
 	UIDef.Parameters.Outputs = outputs
-	return &UIDef
+	return &UIDef, nil
 }
 
 func trimLabel(label string) string {
@@ -201,4 +229,73 @@ func getDefaultValue(defaultValue interface{}) interface{} {
 		val = v
 	}
 	return val
+}
+
+func createUserNameTextBox(name string, label string, tooltip string, defaultValue interface{}, regex string, validationMessage string) Element {
+	element := Element{
+		Name:         name,
+		Type:         "Microsoft.Compute.UserNameTextBox",
+		Label:        label,
+		Tooltip:      tooltip,
+		Visible:      true,
+		DefaultValue: defaultValue,
+		Constraints: UserPasswordConstraints{
+			Required:          isRequired(defaultValue),
+			Regex:             regex,
+			ValidationMessage: validationMessage,
+		},
+		OsPlatform: Linux.String(),
+	}
+
+	return element
+}
+
+func createPasswordBox(name string, label string, tooltip string, defaultValue interface{}, regex string, validationMessage string) Element {
+	element := Element{
+		Name: name,
+		Type: "Microsoft.Common.PasswordBox",
+		Label: PasswordLabel{
+			Password:        label,
+			ConfirmPassword: fmt.Sprintf("Confirm %s", label),
+		},
+		Tooltip: tooltip,
+		Visible: true,
+		Constraints: UserPasswordConstraints{
+			Required:          isRequired(defaultValue),
+			Regex:             regex,
+			ValidationMessage: validationMessage,
+		},
+		Options: PasswordOptions{
+			HideConfirmation: false,
+		},
+	}
+
+	return element
+}
+
+func createTextBox(name string, label string, tooltip string, defaultValue interface{}, required bool, regex string, validationMessage string) Element {
+
+	element := Element{
+		Name:        name,
+		Type:        "Microsoft.Common.TextBox",
+		Label:       label,
+		Tooltip:     tooltip,
+		Visible:     true,
+		Placeholder: fmt.Sprintf("Provide value for %s", label),
+		Constraints: TextBoxConstraints{
+			Required: required,
+			Validations: []TextboxValidations{
+				{
+					Regex:   regex,
+					Message: validationMessage,
+				},
+			},
+		},
+	}
+
+	if !isRequired(defaultValue) {
+		element.DefaultValue = defaultValue
+	}
+
+	return element
 }

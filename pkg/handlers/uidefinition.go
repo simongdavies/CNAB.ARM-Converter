@@ -43,9 +43,9 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 		Tag:              bundle.Ref,
 	}
 
-	options := generator.GenerateTemplateOptions{
+	options := common.BundleDetails{
 		BundleLoc: "",
-		GenerateOptions: generator.GenerateOptions{
+		Options: common.Options{
 			Indent:            true,
 			OutputWriter:      w,
 			Simplify:          bundle.Simplyfy,
@@ -61,9 +61,13 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate template for image: %s error: %v", bundle.Ref, err)))
 	}
-	ui := uidefinition.NewCreateUIDefinition(bundledef.Name, bundledef.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig)
-	if err := common.WriteOutput(options.UIWriter, ui, options.Indent); err != nil {
+	ui, err := uidefinition.NewCreateUIDefinition(bundledef.Name, bundledef.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundledef.Custom)
+	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate UI Def for image: %s error: %v", bundle.Ref, err)))
+	}
+
+	if err := common.WriteOutput(options.UIWriter, ui, options.Indent); err != nil {
+		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to Write UI output for image: %s error: %v", bundle.Ref, err)))
 	}
 }
 

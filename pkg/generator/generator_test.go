@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"gotest.tools/assert"
 )
 
@@ -24,9 +25,9 @@ func TestGenerateTemplate(t *testing.T) {
 
 	defer file.Close()
 
-	options := GenerateTemplateOptions{
+	options := common.BundleDetails{
 		BundleLoc: bundlePath,
-		GenerateOptions: GenerateOptions{
+		Options: common.Options{
 			Indent:       true,
 			OutputWriter: file,
 			Simplify:     true,
@@ -69,9 +70,9 @@ func TestGenerateSimpleTemplate(t *testing.T) {
 
 	defer file.Close()
 
-	options := GenerateTemplateOptions{
+	options := common.BundleDetails{
 		BundleLoc: bundlePath,
-		GenerateOptions: GenerateOptions{
+		Options: common.Options{
 			Indent:       true,
 			OutputWriter: file,
 			Simplify:     true,

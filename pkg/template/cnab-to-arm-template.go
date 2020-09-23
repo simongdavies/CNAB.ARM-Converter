@@ -380,14 +380,16 @@ func (template *Template) addSimpleVariables(bundleName string, executionTimeout
 
 func createScript(tag string) string {
 	//TODO allow version specification for azure driver and plugin
-	//TODO remove storage migrate
 	installsteps := []string{
 		"set -euxo pipefail",
 		"PORTER_HOME=${HOME}/.porter",
 		"PORTER_URL=https://cdn.porter.sh",
 		"PORTER_VERSION=${1}",
 		"mkdir -p ${PORTER_HOME}",
-		"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_URL}/${PORTER_VERSION}/porter-linux-amd64",
+		//TODO temporary download location
+		"PORTER_DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/simongdavies/porter/releases/tags/custom | jq '.assets[]|select(.name==\"porter-linux-amd64\").browser_download_url' -r)",
+		"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_DOWNLOAD_LOCATION}",
+		//"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_URL}/${PORTER_VERSION}/porter-linux-amd64",
 		"chmod +x ${PORTER_HOME}/porter",
 		"export PATH=\"${PORTER_HOME}:${PATH}\"",
 		"${PORTER_HOME}/porter plugin install azure --version $PORTER_VERSION",
@@ -398,7 +400,6 @@ func createScript(tag string) string {
 		"curl -sSLo ${HOME}/.cnab-azure-driver/cnab-azure ${DOWNLOAD_LOCATION}",
 		"chmod +x ${HOME}/.cnab-azure-driver/cnab-azure",
 		"export PATH=${HOME}/.cnab-azure-driver:${PATH}",
-		"porter storage migrate",
 		"set +e",
 		"INSTANCE=$(${HOME}/.porter/porter show \"${2}\" -o json)",
 		"set -e",
@@ -422,6 +423,7 @@ func createScript(tag string) string {
 		"porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --tag ${TAG} -d azure",
 		//TODO deal with sensitve outputs
 		"OUTPUTS=$(porter inst outputs list -i \"${2}\" -o json)",
+		"echo OUTPUTS: ${OUTPUTS}",
 		"if [[ -z ${OUTPUTS} ]]; then echo []|jq '{BundleOutputs: .}';  else echo $OUTPUTS|jq '{BundleOutputs: .}' > ${AZ_SCRIPTS_OUTPUT_PATH}; fi"}
 
 	builder := strings.Builder{}

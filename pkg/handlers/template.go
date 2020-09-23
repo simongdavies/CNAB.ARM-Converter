@@ -34,7 +34,7 @@ func NewNestedDeploymentHandler() chi.Router {
 	return r
 }
 
-// NewNestedDeploymentHandler is the router for Nested Resource generation requests
+// NewRedirectHandler is the router for redirects to Azure Portal
 func NewRedirectHandler() chi.Router {
 	r := chi.NewRouter()
 	r.Use(models.BundleCtx)
@@ -51,9 +51,9 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 		Tag:              bundle.Ref,
 	}
 
-	options := generator.GenerateTemplateOptions{
+	options := common.BundleDetails{
 		BundleLoc: "",
-		GenerateOptions: generator.GenerateOptions{
+		Options: common.Options{
 			Indent:            true,
 			OutputWriter:      w,
 			Simplify:          bundle.Simplyfy,
@@ -84,7 +84,7 @@ func nestedDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options := generator.GenerateNestedDeploymentOptions{
-		GenerateOptions: generator.GenerateOptions{
+		Options: common.Options{
 			Indent:            true,
 			OutputWriter:      w,
 			Simplify:          bundle.Simplyfy,
