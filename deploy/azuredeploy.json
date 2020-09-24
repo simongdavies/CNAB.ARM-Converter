@@ -1,0 +1,119 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "image": {
+      "type": "string"
+    },
+    "nginx-conf": {
+      "type": "string"
+    },
+    "ssl-crt": {
+      "type": "securestring"
+    },
+    "ssl-full-chain-crt": {
+      "type": "securestring"
+    },
+    "ssl-chain-crt": {
+      "type": "securestring"
+    },
+    "ssl-key": {
+      "type": "securestring"
+    }
+  },
+
+  "variables": {
+    "port":80
+  },
+  "resources": [
+    {
+      "name": "cnab-to-arm-template-group",
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2019-12-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "containers": [
+          {
+            "name": "nginx",
+            "properties": {
+              "image": "nginx",
+              "ports": [
+                {
+                  "port": "443",
+                  "protocol": "tcp"
+                }
+              ],
+              "environmentVariables": [
+								{
+									"name": "LISTENER_PORT",
+									"value": "[variables('port')]"
+								}
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "1.0",
+                  "memoryInGb": "1.5"
+                }
+              },
+              "volumeMounts":[{
+                "name":"nginx-config",
+                "mountPath":"/etc/nginx"
+              }]
+            }
+          },
+          {
+            "name": "cnab-to-arm-template-container",
+            "properties": {
+              "image": "[parameters('image')]",
+              "ports": [
+                {
+                  "port": "[variables('port')]"
+                }
+              ],
+              "environmentVariables": [
+								{
+									"name": "LISTENER_PORT",
+									"value": "[variables('port')]"
+								}
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "1.0",
+                  "memoryInGb": "1.5"
+                }
+              }
+            }
+          }
+        ],
+        "volumes":  [
+        {
+            "name":"nginx-config",
+            "secret": {
+                "ssl.crt": "[parameters('ssl-crt')]",
+                "sslchain.crt": "[parameters('ssl-chain-crt')]",
+                "sslfullchain.crt": "[parameters('ssl-full-chain-crt')]",
+                "ssl.key": "[parameters('ssl-key')]",
+                "nginx.conf": "[parameters('nginx-conf')]"
+            }
+        }],
+        "osType": "Linux",
+        "restartPolicy": "Always",
+        "ipAddress": {
+          "type": "Public",
+          "ports": [
+            {
+              "protocol": "Tcp",
+              "port": 443
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "containerIPv4Address": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups/', 'cnab-to-arm-template-group')).ipAddress.ip]"
+    }
+  }
+}

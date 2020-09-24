@@ -20,6 +20,7 @@ __pycache__/
 .vscode/settings.json
 /bin
 azuredeploy.json
+!**/deploy/azuredeploy.json
 bundle.json
 !**/testdata/azuredeploy.json
 !**/testdata/bundle.json

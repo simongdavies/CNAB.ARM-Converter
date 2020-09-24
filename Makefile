@@ -10,6 +10,8 @@ IMAGE           := $(REGISTRY).azurecr.io/$(FILENAME)
 GROUP 					:= template_generator
 LOCATION				:= northeurope
 KV							:= sdkv
+SSLCERTCHAIN		:= cnab-arm-ssl-cert-chain
+SSLCERTFULLCHAIN		:= cnab-arm-ssl-cert-full-chain
 SSLCERT					:= cnab-arm-ssl-cert
 SSLKEY					:= cnab-arm-ssl-key
 GO = GO111MODULE=on go
@@ -35,7 +37,9 @@ deploy: publish
 	NGINXCONF=$$(cat deploy/nginx.conf|base64 -w 0); \
 	SSLKEY=$$(az keyvault secret show --name $(SSLKEY) --vault-name $(KV) --output tsv --query 'value'); \
 	SSLCERT=$$(az keyvault secret show --name $(SSLCERT) --vault-name $(KV) --output tsv --query 'value'); \
-	az deployment group create -g $(GROUP) --template-file deploy/azuredeploy.json --param image=$(IMAGE):$(VERSION)-$(COMMIT) --param nginx-conf=$$NGINXCONF --param ssl-key=$$SSLKEY --param ssl-crt=$$SSLCERT
+	SSLCERTCHAIN=$$(az keyvault secret show --name $(SSLCERTCHAIN) --vault-name $(KV) --output tsv --query 'value'); \
+	SSLCERTFULLCHAIN=$$(az keyvault secret show --name $(SSLCERTFULLCHAIN) --vault-name $(KV) --output tsv --query 'value'); \
+	az deployment group create -g $(GROUP) --template-file deploy/azuredeploy.json --param image=$(IMAGE):$(VERSION)-$(COMMIT) --param nginx-conf=$$NGINXCONF --param ssl-key=$$SSLKEY --param ssl-crt=$$SSLCERT --param ssl-chain-crt=$$SSLCERTCHAIN --param ssl-full-chain-crt=$$SSLFULLCERTCHAIN 
 
 .PHONY: default
 default: build
