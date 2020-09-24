@@ -39,7 +39,7 @@ deploy: publish
 	SSLCERT=$$(az keyvault secret show --name $(SSLCERT) --vault-name $(KV) --output tsv --query 'value'); \
 	SSLCERTCHAIN=$$(az keyvault secret show --name $(SSLCERTCHAIN) --vault-name $(KV) --output tsv --query 'value'); \
 	SSLCERTFULLCHAIN=$$(az keyvault secret show --name $(SSLCERTFULLCHAIN) --vault-name $(KV) --output tsv --query 'value'); \
-	az deployment group create -g $(GROUP) --template-file deploy/azuredeploy.json --param image=$(IMAGE):$(VERSION)-$(COMMIT) --param nginx-conf=$$NGINXCONF --param ssl-key=$$SSLKEY --param ssl-crt=$$SSLCERT --param ssl-chain-crt=$$SSLCERTCHAIN --param ssl-full-chain-crt=$$SSLFULLCERTCHAIN 
+	az deployment group create -g $(GROUP) --template-file deploy/azuredeploy.json --param image=$(IMAGE):$(VERSION)-$(COMMIT) --param nginx-conf=$$NGINXCONF --param ssl-key=$$SSLKEY --param ssl-crt=$$SSLCERT --param ssl-chain-crt=$$SSLCERTCHAIN --param ssl-full-chain-crt=$$SSLCERTFULLCHAIN 
 
 .PHONY: default
 default: build
