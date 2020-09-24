@@ -1,5 +1,9 @@
 package uidefinition
 
+import (
+	"sort"
+)
+
 type OsPlatform int
 
 const (
@@ -155,14 +159,43 @@ type CustomSetting struct {
 
 type CustomSettings []CustomSetting
 
-func (c CustomSettings) Len() int {
-	return len(c)
+type by func(p1, p2 *CustomSetting) bool
+
+func (by by) Sort(settings CustomSettings) {
+	cs := &customSettingsSorter{
+		settings: settings,
+		by:       by,
+	}
+	sort.Sort(cs)
 }
 
-func (c CustomSettings) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
+type customSettingsSorter struct {
+	settings CustomSettings
+	by       func(p1, p2 *CustomSetting) bool
 }
 
-func (c CustomSettings) Less(i, j int) bool {
-	return c[i].DisplayOrder < c[j].DisplayOrder
+func (cs *customSettingsSorter) Len() int {
+	return len(cs.settings)
+}
+
+func (cs *customSettingsSorter) Swap(i, j int) {
+	cs.settings[i], cs.settings[j] = cs.settings[j], cs.settings[i]
+}
+
+func (cs *customSettingsSorter) Less(i, j int) bool {
+	return cs.by(&cs.settings[i], &cs.settings[j])
+}
+
+func (c CustomSettings) SortByName() {
+	f := func(c1, c2 *CustomSetting) bool {
+		return c1.Name < c2.Name
+	}
+	by(f).Sort(c)
+}
+
+func (c CustomSettings) SortByDisplayOrder() {
+	f := func(c1, c2 *CustomSetting) bool {
+		return c1.DisplayOrder < c2.DisplayOrder
+	}
+	by(f).Sort(c)
 }

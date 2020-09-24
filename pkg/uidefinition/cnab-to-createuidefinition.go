@@ -113,7 +113,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 			return nil, fmt.Errorf("Unable to de-serialise Custom UI settings from JSON %w", err)
 		}
 
-		sort.Sort(settings)
+		settings.SortByDisplayOrder()
 
 		allSettings := []CustomSettings{
 			// OrderedElements
@@ -124,7 +124,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 		for _, val := range settings {
 			// Only process setting if the parameter is in the template and if hide is not set
-			if _, ok := generatedTemplate.Parameters[val.Name]; !ok || val.Hide {
+			if _, ok := generatedTemplate.Parameters[val.Name]; !ok || (val.Hide && !isRequired(generatedTemplate.Parameters[val.Name].DefaultValue)) {
 				continue
 			}
 			// two arrays first contains display ordered settings, second contains settings with no order
@@ -168,9 +168,11 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		}
 	}
 
+	settings.SortByName()
+
 	for name, val := range generatedTemplate.Parameters {
 		// Skip any parameters with custom ui
-		if sort.Search(len(settings), func(i int) bool { return settings[i].Name == name }) > 0 || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName {
+		if hasCustomSettings(settings, name) || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName {
 			continue
 		}
 
@@ -210,6 +212,12 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 	UIDef.Parameters.Outputs = outputs
 	return &UIDef, nil
+}
+
+func hasCustomSettings(settings CustomSettings, name string) bool {
+	index := sort.Search(len(settings), func(i int) bool { return settings[i].Name >= name })
+	result := index < len(settings) && settings[index].Name == name
+	return result
 }
 
 func trimLabel(label string) string {
