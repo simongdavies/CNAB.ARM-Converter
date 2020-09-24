@@ -44,6 +44,7 @@ func BundleCtx(next http.Handler) http.Handler {
 		imageName := strings.TrimPrefix(r.URL.Path, TemplateGeneratorPath)
 		imageName = strings.TrimPrefix(imageName, NestedResourceGeneratorPath)
 		imageName = strings.TrimPrefix(imageName, UIDefPath)
+		imageName = strings.TrimPrefix(imageName, BundlePath)
 		imageName = strings.TrimPrefix(imageName, "/")
 
 		if len(imageName) == 0 {
