@@ -150,6 +150,7 @@ type CustomSetting struct {
 	ValidationMessage string `json:"validationMessage,omitempty"`
 	Tooltip           string `json:"toolTip,omitempty"`
 	Bladename         string `json:"bladeName,omitempty"`
+	Hide              bool   `json:"hide,omitempty"`
 }
 
 type CustomSettings []CustomSetting

@@ -123,8 +123,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		}
 
 		for _, val := range settings {
-			// Only process setting if the parameter is in the template
-			if _, ok := generatedTemplate.Parameters[val.Name]; !ok {
+			// Only process setting if the parameter is in the template and if hide is not set
+			if _, ok := generatedTemplate.Parameters[val.Name]; !ok || val.Hide {
 				continue
 			}
 			// two arrays first contains display ordered settings, second contains settings with no order
