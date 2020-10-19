@@ -78,6 +78,76 @@ type DeploymentScriptProperties struct {
 	CleanupPreference      string                 `json:"cleanupPreference"`
 }
 
+// ContainerGroupsProperties properties defines the properties of the deployment script in the generated template
+type ContainerGroupsProperties struct {
+	Containers    []Container `json:"containers"`
+	Volumes       []Volume    `json:"volumes"`
+	OSType        string      `json:"osType"`
+	RestartPolicy string      `json:"restartPolicy"`
+	IPAddress     *IPAddress  `json:"ipAddress"`
+}
+
+// ContainerProperties defines a container in a container group
+type ContainerProperties struct {
+	Image                string                `json:"image"`
+	Ports                []ContainerPorts      `json:"ports"`
+	EnvironmentVariables []EnvironmentVariable `json:"environmentVariables"`
+	Command              []string              `json:"command"`
+	Resources            *Resources            `json:"resources"`
+	VolumeMounts         []VolumeMount         `json:"volumeMounts"`
+}
+
+// Container defines the properties of a container in a container group
+type Container struct {
+	Name       string               `json:"name"`
+	Properties *ContainerProperties `json:"properties"`
+}
+
+// ContainerPorts defines the port property for a container
+type ContainerPorts struct {
+	Port     interface{} `json:"port"`
+	Protocol string      `json:"protocol"`
+}
+
+// Requests defines the requests property for a container
+type Resources struct {
+	Requests *Requests `json:"requests"`
+}
+
+// Requests defines the requests property for a container
+type Requests struct {
+	CPU        float64 `json:"cpu,omitempty"`
+	MemoryInGB float64 `json:"memoryInGB,omitempty"`
+}
+
+// Volume defines the properties of a volume.
+type Volume struct {
+	Name      string            `json:"name,omitempty"`
+	AzureFile *AzureFileVolume  `json:"azureFile,omitempty"`
+	Secret    map[string]string `json:"secret"`
+}
+
+// AzureFileVolume defines the properties of an Azure File share volume.
+type AzureFileVolume struct {
+	ShareName          string `json:"shareName,omitempty"`
+	ReadOnly           bool   `json:"readOnly,omitempty"`
+	StorageAccountName string `json:"storageAccountName,omitempty"`
+	StorageAccountKey  string `json:"storageAccountKey,omitempty"`
+}
+
+// VolumeMount the properties of the volume mount.
+type VolumeMount struct {
+	Name      string `json:"name,omitempty"`
+	MountPath string `json:"mountPath,omitempty"`
+}
+
+// IPAddress defines the IP address property for the container group.
+type IPAddress struct {
+	Ports        *[]ContainerPorts `json:"ports,omitempty"`
+	Type         string            `json:"type,omitempty"`
+	DNSNameLabel string            `json:"dnsNameLabel,omitempty"`
+}
+
 // StorageAccountSettings defines the storage account settings for the storage account settings property of the deployment script in the generated template
 
 type StorageAccountSettings struct {
@@ -104,6 +174,26 @@ type Resource struct {
 	DependsOn  []string    `json:"dependsOn,omitempty"`
 	Identity   *Identity   `json:"identity,omitempty"`
 	Properties interface{} `json:"properties,omitempty"`
+}
+
+// CustomProviderProperties define the properties for a Custom RP
+type CustomProviderProperties struct {
+	Actions       []CustomProviderAction       `json:"actions,omitempty"`
+	ResourceTypes []CustomProviderResourceType `json:"resourceTypes,omitempty"`
+}
+
+// CustomProviderAction defines a custom provider action
+type CustomProviderAction struct {
+	Name        string `json:"name"`
+	RoutingType string `json:"routingType"`
+	Endpoint    string `json:"endpoint"`
+}
+
+// CustomProviderResourceType defines a custom provider action
+type CustomProviderResourceType struct {
+	Name        string `json:"name"`
+	RoutingType string `json:"routingType"`
+	Endpoint    string `json:"endpoint"`
 }
 
 // Identity defines managed identity
@@ -161,6 +251,25 @@ func (template *Template) SetDeploymentScriptEnvironmentVariable(environmentVari
 	return nil
 }
 
+// SetCustomRPAction sets an action for a CustomRP
+func (template *Template) SetCustomRPAction(customRPAction CustomProviderAction) error {
+	customRP, err := template.FindResource(CustomRPName)
+	if err != nil {
+		return errors.Wrap(err, "Failed to find customRP resource")
+	}
+
+	customRPProperties, ok := customRP.Properties.(CustomProviderProperties)
+
+	if !ok {
+		return errors.New("Failed to get customRP resource properties")
+	}
+
+	customRPProperties.Actions = append(customRPProperties.Actions, customRPAction)
+	customRP.Properties = customRPProperties
+
+	return nil
+}
+
 func (t *Template) FindResource(resourceName string) (*Resource, error) {
 	for i := range t.Resources {
 		resource := &t.Resources[i]
@@ -169,5 +278,5 @@ func (t *Template) FindResource(resourceName string) (*Resource, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("Deployment Script not found in the template")
+	return nil, fmt.Errorf("Resource not found in the template")
 }

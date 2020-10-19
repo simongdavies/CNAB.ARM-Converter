@@ -1,6 +1,6 @@
 package pkg
 
-// These are build-time values, set during an official release
+// These are build-time values
 var (
 	Commit  string
 	Version string

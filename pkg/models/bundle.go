@@ -24,6 +24,7 @@ const (
 	UIRedirectPath              string           = "/api/customui"
 	BundlePath                  string           = "/api/bundle"
 	UIDefPath                   string           = "/api/generate/uidef"
+	CustomRPPath                string           = "/api/customrp"
 	BundleContext               BundleContextKey = "bundle"
 )
 
@@ -45,6 +46,7 @@ func BundleCtx(next http.Handler) http.Handler {
 		imageName = strings.TrimPrefix(imageName, NestedResourceGeneratorPath)
 		imageName = strings.TrimPrefix(imageName, UIDefPath)
 		imageName = strings.TrimPrefix(imageName, BundlePath)
+		imageName = strings.TrimPrefix(imageName, CustomRPPath)
 		imageName = strings.TrimPrefix(imageName, "/")
 
 		if len(imageName) == 0 {

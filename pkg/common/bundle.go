@@ -14,6 +14,12 @@ import (
 	"github.com/docker/distribution/reference"
 )
 
+var BuiltInActions = []string{
+	"install",
+	"upgrade",
+	"uninstall",
+}
+
 type Options struct {
 	OutputWriter      io.Writer
 	Indent            bool

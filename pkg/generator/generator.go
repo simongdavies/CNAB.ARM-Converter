@@ -22,7 +22,7 @@ type GenerateNestedDeploymentOptions struct {
 	common.Options
 }
 
-// GenerateTemplate generates ARM template from bundle metadata
+// GenerateNestedDeployment generates ARM deployment resource from bundle metadata
 func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 
 	bundle, err := common.GetBundleFromTag(options.BundlePullOptions)
@@ -274,6 +274,38 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 	return generatedTemplate, bundle, nil
 }
 
+func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle.Bundle, error) {
+	bundle, bundleTag, err := common.GetBundleDetails(options)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	customRPTemplate, err := template.NewCnabCustomRPTemplate(
+		bundle.Name,
+		bundleTag)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	customActions := getCustomActions(bundle)
+	for i := range customActions {
+
+		customProviderAction := template.CustomProviderAction{
+			Name:        customActions[i],
+			Endpoint:    "[concat('https://',variables('endPointDNSName'))]",
+			RoutingType: "Proxy",
+		}
+
+		if err = customRPTemplate.SetCustomRPAction(customProviderAction); err != nil {
+			return nil, nil, err
+		}
+
+	}
+
+	return customRPTemplate, bundle, nil
+}
+
 func GenerateFiles(options common.BundleDetails, outputFile *os.File, uiFile *os.File) error {
 
 	generatedTemplate, bundle, err := GenerateTemplate(options)
@@ -376,6 +408,25 @@ func getParameterKeys(bundle bundle.Bundle) ([]string, error) {
 	}
 	sort.Strings(parameterKeys)
 	return parameterKeys, nil
+}
+
+func getCustomActions(bundle *bundle.Bundle) []string {
+	var actions []string
+	for name := range bundle.Actions {
+		if isCustomAction(name) {
+			actions = append(actions, name)
+		}
+	}
+	return actions
+}
+
+func isCustomAction(name string) bool {
+	for i := range common.BuiltInActions {
+		if strings.EqualFold(common.BuiltInActions[i], name) {
+			return false
+		}
+	}
+	return true
 }
 
 func getCredentialKeys(bundle bundle.Bundle) ([]string, error) {
