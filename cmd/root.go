@@ -20,6 +20,8 @@ var overwrite bool
 var indent bool
 var simplify bool
 var customUI bool
+var customRP bool
+var includeCustomResource bool
 var replaceKubeconfig bool
 var timeout int
 var opts porter.BundlePullOptions
@@ -115,22 +117,34 @@ var rootCmd = &cobra.Command{
 		options := common.BundleDetails{
 			BundleLoc: bundleFileName,
 			Options: common.Options{
-				Indent:            indent,
-				OutputWriter:      outputFile,
-				Simplify:          simplify,
-				Timeout:           timeout,
-				GenerateUI:        customUI,
-				UIWriter:          uiFile,
-				ReplaceKubeconfig: replaceKubeconfig,
-				BundlePullOptions: &opts,
+				Indent:                indent,
+				OutputWriter:          outputFile,
+				Simplify:              simplify,
+				Timeout:               timeout,
+				GenerateUI:            customUI,
+				CustomRPTemplate:      customRP,
+				IncludeCustomResource: includeCustomResource,
+				UIWriter:              uiFile,
+				ReplaceKubeconfig:     replaceKubeconfig,
+				BundlePullOptions:     &opts,
 			},
 		}
-
-		err = generator.GenerateFiles(options, outputFile, uiFile)
+		err = generator.GenerateFiles(options)
 		if err != nil {
 			return fmt.Errorf("Error generating template: %w", err)
 		}
 
+		err = outputFile.Sync()
+		if err != nil {
+			return fmt.Errorf("Error saving output file: %w", err)
+		}
+
+		if customUI {
+			err = uiFile.Sync()
+			if err != nil {
+				return fmt.Errorf("Error saving UI Definition file: %w", err)
+			}
+		}
 		return nil
 	},
 }
@@ -143,6 +157,8 @@ func init() {
 	rootCmd.Flags().BoolVarP(&indent, "indent", "i", false, "specifies if the json output should be indented")
 	rootCmd.Flags().BoolVarP(&customUI, "customuidef", "c", false, "generates a custom createUIDefinition file called createUIdefinition.json in the same directory as the template")
 	rootCmd.Flags().BoolVarP(&simplify, "simplify", "s", false, "specifies if the ARM template should be simplified, exposing less parameters and inferring default values")
+	rootCmd.Flags().BoolVarP(&customRP, "customrp", "p", false, "generates a template to create a custom RP implemenation")
+	rootCmd.Flags().BoolVarP(&includeCustomResource, "includeresource", "n", false, "causes the customRP template to include an instance of the type in addition to the resource and type definition")
 	rootCmd.Flags().BoolVarP(&replaceKubeconfig, "replace", "r", false, "specifies if the ARM template generated should replace Kubeconfig Parameters with AKS references")
 	rootCmd.Flags().IntVar(&timeout, "timeout", 15, "specifies the time in minutes that is allowed for execution of the CNAB Action in the generated template")
 	rootCmd.Flags().StringVarP(&opts.Tag, "tag", "t", "", "Use a bundle specified by the given tag.")

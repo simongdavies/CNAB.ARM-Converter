@@ -25,20 +25,28 @@ const (
 	BundlePath                  string           = "/api/bundle"
 	UIDefPath                   string           = "/api/generate/uidef"
 	CustomRPPath                string           = "/api/customrp"
+	ManagedAppPath              string           = "/api/managedapp"
 	BundleContext               BundleContextKey = "bundle"
 )
 
 type Bundle struct {
-	Ref               string
-	Force             bool
-	InsecureRegistry  bool
-	Simplyfy          bool
-	Timeout           int
-	ReplaceKubeconfig bool
+	Ref                   string
+	Force                 bool
+	InsecureRegistry      bool
+	Simplyfy              bool
+	Timeout               int
+	ReplaceKubeconfig     bool
+	IncludeCustomResource bool
+	CustomRPTemplate      bool
 }
 
 func BundleCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		customRpTemplate := strings.Contains(r.URL.Path, CustomRPPath)
+		if !customRpTemplate {
+			customRpTemplate = getBoolQueryParam(r, "customrp")
+		}
 
 		// get the image name
 
@@ -47,6 +55,7 @@ func BundleCtx(next http.Handler) http.Handler {
 		imageName = strings.TrimPrefix(imageName, UIDefPath)
 		imageName = strings.TrimPrefix(imageName, BundlePath)
 		imageName = strings.TrimPrefix(imageName, CustomRPPath)
+		imageName = strings.TrimPrefix(imageName, ManagedAppPath)
 		imageName = strings.TrimPrefix(imageName, "/")
 
 		if len(imageName) == 0 {
@@ -61,12 +70,14 @@ func BundleCtx(next http.Handler) http.Handler {
 			return
 		}
 		bundleContext := Bundle{
-			Ref:               imageName,
-			Force:             getBoolQueryParam(r, "force"),
-			InsecureRegistry:  getBoolQueryParam(r, "insecureregistry"),
-			Simplyfy:          getBoolQueryParam(r, "simplyfy"),
-			Timeout:           getIntQueryParam(r, "timeout", 15),
-			ReplaceKubeconfig: getBoolQueryParam(r, "useaks"),
+			Ref:                   imageName,
+			Force:                 getBoolQueryParam(r, "force"),
+			InsecureRegistry:      getBoolQueryParam(r, "insecureregistry"),
+			Simplyfy:              getBoolQueryParam(r, "simplyfy"),
+			Timeout:               getIntQueryParam(r, "timeout", 15),
+			ReplaceKubeconfig:     getBoolQueryParam(r, "useaks"),
+			IncludeCustomResource: getBoolQueryParam(r, "includeresource"),
+			CustomRPTemplate:      customRpTemplate,
 		}
 
 		ctx := context.WithValue(r.Context(), BundleContext, &bundleContext)

@@ -87,6 +87,13 @@ type ContainerGroupsProperties struct {
 	IPAddress     *IPAddress  `json:"ipAddress"`
 }
 
+// CustomProviderResourceProperties defines the properties of a custom RP type instance
+
+type CustomProviderResourceProperties struct {
+	Credentials map[string]interface{} `json:"credentials,omitempty"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+}
+
 // ContainerProperties defines a container in a container group
 type ContainerProperties struct {
 	Image                string                `json:"image"`

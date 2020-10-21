@@ -21,14 +21,16 @@ var BuiltInActions = []string{
 }
 
 type Options struct {
-	OutputWriter      io.Writer
-	Indent            bool
-	Simplify          bool
-	ReplaceKubeconfig bool
-	GenerateUI        bool
-	Timeout           int
-	UIWriter          io.Writer
-	BundlePullOptions *porter.BundlePullOptions
+	OutputWriter          io.Writer
+	Indent                bool
+	Simplify              bool
+	ReplaceKubeconfig     bool
+	GenerateUI            bool
+	IncludeCustomResource bool
+	CustomRPTemplate      bool
+	Timeout               int
+	UIWriter              io.Writer
+	BundlePullOptions     *porter.BundlePullOptions
 }
 
 // BundleDetails is defines the bundle and bundle options to be used

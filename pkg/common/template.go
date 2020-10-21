@@ -73,6 +73,9 @@ var ParameterDefaults = map[string]interface{}{
 
 const AKSResourceParameterName = "aksClusterName"
 const AKSResourceGroupParameterName = "aksClusterResourceGroupName"
+const KubeConfigParameterName = "kubeconfig"
+const LocationParameterName = "location"
+const DebugParameterName = "debug"
 
 func WriteOutput(writer io.Writer, data interface{}, indent bool) error {
 	encoder := json.NewEncoder(writer)

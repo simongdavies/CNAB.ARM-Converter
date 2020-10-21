@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -45,7 +44,7 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 		_, isCnabParam := isCnabParam(parameterKey)
 
 		if !isCnabParam || (isCnabParam && !options.Simplify) {
-			if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == "kubeconfig" {
+			if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == common.KubeConfigParameterName {
 				generatedDeployment.Properties.Parameters[common.AKSResourceGroupParameterName] = template.ParameterValue{
 					Value: fmt.Sprintf("TODO add value for %s or delete this parameter to use default of current resource group", common.AKSResourceGroupParameterName),
 				}
@@ -72,7 +71,7 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 
 	for _, credentialKey := range credentialKeys {
 		credential := bundle.Credentials[credentialKey]
-		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == "kubeconfig" {
+		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == common.KubeConfigParameterName {
 			generatedDeployment.Properties.Parameters[common.AKSResourceGroupParameterName] = template.ParameterValue{
 				Value: fmt.Sprintf("TODO add value for %s or delete this parameter to use default of current resource group", common.AKSResourceGroupParameterName),
 			}
@@ -125,75 +124,18 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 			Name: common.GetEnvironmentVariableNames().CnabParameterPrefix + parameterKey,
 		}
 
-		if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == "kubeconfig" {
+		if options.ReplaceKubeconfig && strings.ToLower(parameterKey) == common.KubeConfigParameterName {
 			paramEnvVar.SecureValue = fmt.Sprintf("[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('%s'),'Microsoft.ContainerService/managedClusters',parameters('%s')), '2020-09-01').kubeconfigs[0].value]", common.AKSResourceGroupParameterName, common.AKSResourceParameterName)
 			setAKSParameters(generatedTemplate, bundle)
 		} else if cnabParam, ok := isCnabParam(parameterKey); options.Simplify && ok {
 			paramEnvVar.Value = fmt.Sprintf("[variables('%s')]", cnabParam)
-		} else {
-
-			var metadata template.Metadata
-			if definition.Description != "" {
-				metadata = template.Metadata{
-					Description: definition.Description,
-				}
-			}
-
-			var allowedValues interface{}
-			if definition.Enum != nil {
-				allowedValues = definition.Enum
-			}
-
-			defaultValue, _ := getDefaultValue(definition, parameter)
-
-			var minValue *int
-			if definition.Minimum != nil {
-				minValue = definition.Minimum
-			}
-			if definition.ExclusiveMinimum != nil {
-				min := *definition.ExclusiveMinimum + 1
-				minValue = &min
-			}
-
-			var maxValue *int
-			if definition.Maximum != nil {
-				maxValue = definition.Maximum
-			}
-			if definition.ExclusiveMaximum != nil {
-				max := *definition.ExclusiveMaximum - 1
-				maxValue = &max
-			}
-
-			var minLength *int
-			if definition.MinLength != nil {
-				minLength = definition.MinLength
-			}
-
-			var maxLength *int
-			if definition.MaxLength != nil {
-				maxLength = definition.MaxLength
-			}
-
-			isSensitive := false
-			if definition.WriteOnly != nil && *definition.WriteOnly {
-				isSensitive = true
-			}
-
-			armType, err := toARMType(definition.Type.(string), isSensitive)
+		} else if parameter.AppliesTo("install") || parameter.AppliesTo("upgrade") {
+			templateParameter, isSensitive, err := genParameter(parameter, definition)
 			if err != nil {
 				return nil, nil, err
 			}
 
-			generatedTemplate.Parameters[parameterKey] = template.Parameter{
-				Type:          armType,
-				AllowedValues: allowedValues,
-				DefaultValue:  defaultValue,
-				Metadata:      &metadata,
-				MinValue:      minValue,
-				MaxValue:      maxValue,
-				MinLength:     minLength,
-				MaxLength:     maxLength,
-			}
+			generatedTemplate.Parameters[parameterKey] = *templateParameter
 
 			if isSensitive {
 				paramEnvVar.SecureValue = fmt.Sprintf("[parameters('%s')]", parameterKey)
@@ -201,6 +143,8 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 				paramEnvVar.Value = fmt.Sprintf("[parameters('%s')]", parameterKey)
 			}
 
+		} else {
+			continue
 		}
 
 		if err = generatedTemplate.SetDeploymentScriptEnvironmentVariable(paramEnvVar); err != nil {
@@ -250,7 +194,7 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 			Name: envVarName,
 		}
 
-		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == "kubeconfig" {
+		if options.ReplaceKubeconfig && strings.ToLower(credentialKey) == common.KubeConfigParameterName {
 			credEnvVar.SecureValue = fmt.Sprintf("[listClusterAdminCredential(resourceId(subscription().subscriptionId,parameters('%s'),'Microsoft.ContainerService/managedClusters',parameters('%s')), '2020-09-01').kubeconfigs[0].value]", common.AKSResourceGroupParameterName, common.AKSResourceParameterName)
 			setAKSParameters(generatedTemplate, bundle)
 		} else {
@@ -274,6 +218,72 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 	return generatedTemplate, bundle, nil
 }
 
+func genParameter(parameter bundle.Parameter, definition *definition.Schema) (*template.Parameter, bool, error) {
+
+	var metadata template.Metadata
+	if definition.Description != "" {
+		metadata = template.Metadata{
+			Description: definition.Description,
+		}
+	}
+
+	var allowedValues interface{}
+	if definition.Enum != nil {
+		allowedValues = definition.Enum
+	}
+
+	defaultValue, _ := getDefaultValue(definition, parameter)
+
+	var minValue *int
+	if definition.Minimum != nil {
+		minValue = definition.Minimum
+	}
+	if definition.ExclusiveMinimum != nil {
+		min := *definition.ExclusiveMinimum + 1
+		minValue = &min
+	}
+
+	var maxValue *int
+	if definition.Maximum != nil {
+		maxValue = definition.Maximum
+	}
+	if definition.ExclusiveMaximum != nil {
+		max := *definition.ExclusiveMaximum - 1
+		maxValue = &max
+	}
+
+	var minLength *int
+	if definition.MinLength != nil {
+		minLength = definition.MinLength
+	}
+
+	var maxLength *int
+	if definition.MaxLength != nil {
+		maxLength = definition.MaxLength
+	}
+
+	isSensitive := false
+	if definition.WriteOnly != nil && *definition.WriteOnly {
+		isSensitive = true
+	}
+
+	armType, err := toARMType(definition.Type.(string), isSensitive)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return &template.Parameter{
+		Type:          armType,
+		AllowedValues: allowedValues,
+		DefaultValue:  defaultValue,
+		Metadata:      &metadata,
+		MinValue:      minValue,
+		MaxValue:      maxValue,
+		MinLength:     minLength,
+		MaxLength:     maxLength,
+	}, isSensitive, nil
+}
+
 func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle.Bundle, error) {
 	bundle, bundleTag, err := common.GetBundleDetails(options)
 	if err != nil {
@@ -282,7 +292,9 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 	customRPTemplate, err := template.NewCnabCustomRPTemplate(
 		bundle.Name,
-		bundleTag)
+		bundleTag,
+		options.IncludeCustomResource,
+	)
 
 	if err != nil {
 		return nil, nil, err
@@ -303,12 +315,95 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 	}
 
+	if options.IncludeCustomResource {
+
+		customResourceProperties := template.CustomProviderResourceProperties{
+			Credentials: make(map[string]interface{}),
+			Parameters:  make(map[string]interface{}),
+		}
+		customResource := template.Resource{
+			Type:       fmt.Sprintf("Microsoft.CustomProviders/resourceProviders/%s", template.CustomRPTypeName),
+			APIVersion: template.CustomRPAPIVersion,
+			Name:       fmt.Sprintf("[concat('%s/',parameters('namespace'))]", template.CustomRPName),
+			Location:   "[parameters('location')]",
+			DependsOn:  []string{template.CustomRPName},
+			Properties: customResourceProperties,
+		}
+
+		parameterKeys, err := getParameterKeys(*bundle)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, parameterKey := range parameterKeys {
+			parameter := bundle.Parameters[parameterKey]
+			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) {
+
+				definition := bundle.Definitions[parameter.Definition]
+				templateParameter, _, err := genParameter(parameter, definition)
+				if err != nil {
+					return nil, nil, err
+				}
+				customRPTemplate.Parameters[parameterKey] = *templateParameter
+				customResourceProperties.Parameters[parameterKey] = fmt.Sprintf("[parameters('%s')]", parameterKey)
+			}
+		}
+
+		credentialKeys, err := getCredentialKeys(*bundle)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, credentialKey := range credentialKeys {
+			credential := bundle.Credentials[credentialKey]
+
+			var metadata template.Metadata
+			var description string
+			var defaultValue interface{}
+
+			if credential.Description != "" {
+				description = credential.Description
+			}
+
+			if credential.Path != "" {
+				if description != "" {
+					description += " "
+				}
+				description += "(Enter base64 encoded representation of file)"
+			}
+
+			if description != "" {
+				metadata = template.Metadata{
+					Description: description,
+				}
+			}
+
+			if !credential.Required {
+				defaultValue = ""
+			}
+
+			customRPTemplate.Parameters[credentialKey] = template.Parameter{
+				Type:         "securestring",
+				Metadata:     &metadata,
+				DefaultValue: defaultValue,
+			}
+			customResourceProperties.Credentials[credentialKey] = fmt.Sprintf("[parameters('%s')]", credentialKey)
+		}
+		customRPTemplate.Resources = append(customRPTemplate.Resources, customResource)
+	}
 	return customRPTemplate, bundle, nil
 }
 
-func GenerateFiles(options common.BundleDetails, outputFile *os.File, uiFile *os.File) error {
+func GenerateFiles(options common.BundleDetails) error {
+	var generatedTemplate *template.Template
+	var bundle *bundle.Bundle
+	var err error
 
-	generatedTemplate, bundle, err := GenerateTemplate(options)
+	if options.CustomRPTemplate {
+		generatedTemplate, bundle, err = GenerateCustomRP(options)
+	} else {
+		generatedTemplate, bundle, err = GenerateTemplate(options)
+	}
 	if err != nil {
 		return fmt.Errorf("Error generating template: %w", err)
 	}
@@ -318,24 +413,14 @@ func GenerateFiles(options common.BundleDetails, outputFile *os.File, uiFile *os
 		return fmt.Errorf("Error writing output file: %w", err)
 	}
 
-	err = outputFile.Sync()
-	if err != nil {
-		return fmt.Errorf("Error saving output file: %w", err)
-	}
-
 	if options.GenerateUI {
-		ui, err := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundle.Custom)
+		ui, err := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundle.Custom, options.CustomRPTemplate, options.IncludeCustomResource)
 		if err != nil {
 			return fmt.Errorf("Failed to gernerate UI definition, %w", err)
 		}
 
 		if err = common.WriteOutput(options.UIWriter, ui, options.Indent); err != nil {
 			return fmt.Errorf("Failed to write ui definition output, %w", err)
-		}
-
-		err = uiFile.Sync()
-		if err != nil {
-			return fmt.Errorf("Error saving UI Definition file: %w", err)
 		}
 	}
 	return nil

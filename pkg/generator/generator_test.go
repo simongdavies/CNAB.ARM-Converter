@@ -79,7 +79,7 @@ func TestGenerateSimpleTemplate(t *testing.T) {
 		},
 	}
 
-	err = GenerateFiles(options, file, nil)
+	err = GenerateFiles(options)
 	if err != nil {
 		t.Errorf("GenerateTemplate failed: %s", err.Error())
 	}

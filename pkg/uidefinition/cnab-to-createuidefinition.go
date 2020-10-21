@@ -11,7 +11,15 @@ import (
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 )
 
-func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}) (*CreateUIDefinition, error) {
+func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}, customRPUI bool, includeResource bool) (*CreateUIDefinition, error) {
+
+	locationLabel := "CNAB Action Location"
+	locationToolTip := "This is the location where the deployment to run the CNAB action will run"
+	if customRPUI {
+		locationLabel = "Application Location"
+		locationToolTip = "This is the location for the application and all its resources"
+	}
+
 	UIDef := CreateUIDefinition{
 		Schema:  "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
 		Handler: "Microsoft.Azure.CreateUIDef",
@@ -57,8 +65,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 						AllowExisting: true,
 					},
 					Location: Location{
-						Label:   "CNAB Action Location",
-						Tooltip: "This is the location where the deployment to run the CNAB action will run",
+						Label:   locationLabel,
+						Tooltip: locationToolTip,
 						ResourceTypes: []string{
 							"Microsoft.ContainerInstance/containerGroups",
 							"Microsoft.ManagedIdentity/userAssignedIdentities",
@@ -82,7 +90,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 	elementsMap["basics"] = []Element{}
 	elementsMap["Additional"] = []Element{}
 
-	if _, aks := generatedTemplate.Parameters[common.AKSResourceParameterName]; aks && useAKS {
+	if _, aks := generatedTemplate.Parameters[common.AKSResourceParameterName]; aks && useAKS && !customRPUI {
 		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "aksSelector",
 			Type:         "Microsoft.Solutions.ResourceSelector",
@@ -100,6 +108,34 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 		outputs[common.AKSResourceGroupParameterName] = "[last(take(split(steps('basics').aksSelector.id,'/'),5))]"
 		outputs[common.AKSResourceParameterName] = "[steps('basics').aksSelector.name]"
+	}
+
+	if _, aks := generatedTemplate.Parameters[common.KubeConfigParameterName]; aks && customRPUI && includeResource {
+		elementsMap["basics"] = append(elementsMap["basics"], Element{
+			Name:         "aksSelector",
+			Type:         "Microsoft.Solutions.ResourceSelector",
+			Label:        "Select AKS Cluster",
+			ResourceType: "Microsoft.ContainerService/managedClusters",
+			Visible:      true,
+			Tooltip:      fmt.Sprintf("Select the AKS Cluster to deploy %s to", bundleName),
+			Options: ResourceSelectorOptions{
+				Filter: ResourceSelectorFilter{
+					Subscription: OnBasics.String(),
+					Location:     All.String(),
+				},
+			},
+		})
+
+		elementsMap["basics"] = append(elementsMap["basics"], Element{
+			Name: "aksKubeConfig",
+			Type: "Microsoft.Solutions.ArmApiControl",
+			Request: &ArmAPIRequest{
+				Method: "POST",
+				Path:   "[replace(concat(string(steps('basics').aksSelector.id),'/listClusterAdminCredential?api-version=2019-04-01'),'\"','')]",
+			},
+		})
+
+		outputs[common.KubeConfigParameterName] = "[first(steps('basics').aksKubeConfig.kubeconfigs).value]"
 	}
 
 	settings := make(CustomSettings, 0)
@@ -123,8 +159,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		}
 
 		for _, val := range settings {
-			// Only process setting if the parameter is in the template and if hide is not set
-			if _, ok := generatedTemplate.Parameters[val.Name]; !ok || (val.Hide && !isRequired(generatedTemplate.Parameters[val.Name].DefaultValue)) {
+			// Only process setting if the parameter is in the template and if hide is not set and if customRPUI then skip kubeconfig as UI has been generated to select this.
+			if _, ok := generatedTemplate.Parameters[val.Name]; !ok || (val.Hide && !isRequired(generatedTemplate.Parameters[val.Name].DefaultValue)) || strings.ToLower(val.Name) == common.KubeConfigParameterName {
 				continue
 			}
 			// two arrays first contains display ordered settings, second contains settings with no order
@@ -168,11 +204,15 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		}
 	}
 
+	if _, ok := generatedTemplate.Parameters[common.LocationParameterName]; ok {
+		outputs[common.LocationParameterName] = "[location()]"
+	}
+
 	settings.SortByName()
 
 	for name, val := range generatedTemplate.Parameters {
-		// Skip any parameters with custom ui
-		if hasCustomSettings(settings, name) || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName {
+		// Skip any parameters with custom ui , location or kubeconfig when processing CustomRP UI
+		if hasCustomSettings(settings, name) || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName || name == common.LocationParameterName || (name == common.DebugParameterName && customRPUI) || (name == common.KubeConfigParameterName && customRPUI) {
 			continue
 		}
 

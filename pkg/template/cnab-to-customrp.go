@@ -8,9 +8,11 @@ import (
 
 const CustomRPContainerGroupName = "cnab-custom-resource"
 const CustomRPName = "public"
+const CustomRPAPIVersion = "2018-09-01-preview"
+const CustomRPTypeName = "installs"
 
 // NewCnabCustomRPTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, error) {
+func NewCnabCustomRPTemplate(bundleName string, bundleImage string, generateCustomResource bool) (*Template, error) {
 
 	resources := []Resource{
 		{
@@ -163,7 +165,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 					{
 						Name: "custom-resource-container",
 						Properties: &ContainerProperties{
-							Image: "[parameters('customRPImage')]",
+							Image: "cnabquickstarts.azurecr.io/cnabcustomrphandler:latest",
 							Ports: []ContainerPorts{
 								{
 									Port: "[variables('port')]",
@@ -224,7 +226,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 								},
 								{
 									Name:  "CUSTOM_RP_TYPE",
-									Value: fmt.Sprintf("[concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/',variables('rpTypeName'))]", CustomRPName),
+									Value: fmt.Sprintf("[concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'), '/%s')]", CustomRPName, CustomRPTypeName),
 								},
 							},
 							Command: []string{
@@ -298,7 +300,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 		},
 		{
 			Type:       "Microsoft.CustomProviders/resourceProviders",
-			APIVersion: "2018-09-01-preview",
+			APIVersion: CustomRPAPIVersion,
 			Name:       CustomRPName,
 			Location:   "[parameters('location')]",
 			DependsOn: []string{
@@ -307,7 +309,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 			Properties: CustomProviderProperties{
 				ResourceTypes: []CustomProviderResourceType{
 					{
-						Name:        "[variables('rpTypeName')]",
+						Name:        CustomRPTypeName,
 						Endpoint:    "[concat('https://',variables('endPointDNSName'))]",
 						RoutingType: "Proxy",
 					},
@@ -349,18 +351,10 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 			DefaultValue: common.ParameterDefaults["location"],
 		},
 
-		"customRPImage": {
-			Type: "string",
-			Metadata: &Metadata{
-				Description: "The custom RP impementation image",
-			},
-			DefaultValue: "cnabquickstarts.azurecr.io/cnabcustomrphandler:latest",
-		},
-
 		"debug": {
 			Type: "bool",
 			Metadata: &Metadata{
-				Description: "Creates verbose output from cnab azure driver",
+				Description: "Creates verbose output from cnab azure driver and custom RP",
 			},
 			DefaultValue: common.ParameterDefaults["customrp_debug"],
 		},
@@ -379,7 +373,6 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 		"endPointDNSName":   "[concat(variables('endPointDNSPrefix'),'.',tolower(replace(parameters('location'),' ','')),'.azurecontainer.io')]",
 		"stateTableName":    "installstate",
 		"aysncOpTableName":  "asyncops",
-		"rpTypeName":        "installs",
 	}
 
 	template := Template{
@@ -398,6 +391,5 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 	userIdentity := make(map[string]interface{}, 1)
 	userIdentity["[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msi_name'))]"] = &emptystruct
 	resource.Identity.UserAssignedIdentities = userIdentity
-
 	return &template, nil
 }

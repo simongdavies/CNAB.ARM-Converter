@@ -60,17 +60,18 @@ type Step struct {
 }
 
 type Element struct {
-	Name         string      `json:"name"`
-	Type         string      `json:"type"`
-	Label        interface{} `json:"label"`
-	Visible      bool        `json:"visible"`
-	Tooltip      string      `json:"toolTip,omitempty"`
-	DefaultValue interface{} `json:"defaultValue,omitempty"`
-	Placeholder  string      `json:"placeholder,omitempty"`
-	Options      interface{} `json:"options,omitempty"`
-	Constraints  interface{} `json:"constraints,omitempty"`
-	ResourceType string      `json:"resourceType,omitempty"`
-	OsPlatform   string      `json:"osPlatform,omitempty"`
+	Name         string         `json:"name"`
+	Type         string         `json:"type"`
+	Label        interface{}    `json:"label"`
+	Visible      bool           `json:"visible"`
+	Tooltip      string         `json:"toolTip,omitempty"`
+	DefaultValue interface{}    `json:"defaultValue,omitempty"`
+	Placeholder  string         `json:"placeholder,omitempty"`
+	Options      interface{}    `json:"options,omitempty"`
+	Constraints  interface{}    `json:"constraints,omitempty"`
+	ResourceType string         `json:"resourceType,omitempty"`
+	OsPlatform   string         `json:"osPlatform,omitempty"`
+	Request      *ArmAPIRequest `json:"request,omitempty"`
 }
 
 type Config struct {
@@ -109,6 +110,11 @@ type InfoboxOptions struct {
 	Icon string `json:"icon,omitempty"`
 	Text string `json:"text,omitempty"`
 	Uri  string `json:"uri,omitempty"`
+}
+
+type ArmAPIRequest struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
 }
 
 type ResourceSelectorOptions struct {

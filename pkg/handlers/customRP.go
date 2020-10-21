@@ -35,12 +35,13 @@ func getCustomRPHandler(w http.ResponseWriter, r *http.Request) {
 	options := common.BundleDetails{
 		BundleLoc: "",
 		Options: common.Options{
-			Indent:            true,
-			OutputWriter:      w,
-			Simplify:          bundle.Simplyfy,
-			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
-			BundlePullOptions: &opts,
-			Timeout:           bundle.Timeout,
+			Indent:                true,
+			OutputWriter:          w,
+			Simplify:              bundle.Simplyfy,
+			ReplaceKubeconfig:     bundle.ReplaceKubeconfig,
+			BundlePullOptions:     &opts,
+			Timeout:               bundle.Timeout,
+			IncludeCustomResource: bundle.IncludeCustomResource,
 		},
 	}
 	generatedCustomRPTemplate, _, err := generator.GenerateCustomRP(options)
