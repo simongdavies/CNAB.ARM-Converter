@@ -35,7 +35,7 @@ func NewCnabMAnagedAppDefinitionTemplate(bundleName string, bundleDescription st
 	}
 
 	parameters := map[string]Parameter{
-		"aapname": {
+		"appname": {
 			Type: "string",
 			Metadata: &Metadata{
 				Description: "The name of the managed app to create.",
