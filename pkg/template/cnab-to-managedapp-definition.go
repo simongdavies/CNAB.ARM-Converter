@@ -10,7 +10,7 @@ func NewCnabMAnagedAppDefinitionTemplate(bundleName string, bundleDescription st
 	resources := []Resource{
 		{
 			Type:       "Microsoft.Solutions/applicationDefinitions",
-			Name:       "[parameters('appname')]",
+			Name:       "[parameters('appdefname')]",
 			APIVersion: "2019-07-01",
 			Location:   "[resourceGroup().location]",
 			Properties: ApplicationDefinitionProperties{
@@ -35,7 +35,7 @@ func NewCnabMAnagedAppDefinitionTemplate(bundleName string, bundleDescription st
 	}
 
 	parameters := map[string]Parameter{
-		"appname": {
+		"appdefname": {
 			Type: "string",
 			Metadata: &Metadata{
 				Description: "The name of the managed app to create.",
