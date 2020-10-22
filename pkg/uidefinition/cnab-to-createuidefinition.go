@@ -90,6 +90,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 	elementsMap["basics"] = []Element{}
 	elementsMap["Additional"] = []Element{}
 
+	bladeMap := map[string]string{}
+
 	if _, aks := generatedTemplate.Parameters[common.AKSResourceParameterName]; aks && useAKS && !customRPUI {
 		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "aksSelector",
@@ -179,6 +181,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 					step = val.Bladename
 					if _, ok := elementsMap[step]; !ok {
 						elementsMap[step] = make([]Element, 0)
+						bladeMap[val.Bladename] = val.Bladetitle
 					}
 				}
 				tooltip := trimLabel(generatedTemplate.Parameters[val.Name].Metadata.Description)
@@ -239,10 +242,14 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		if k == "basics" {
 			UIDef.Parameters.Basics = v
 		} else {
+			bladeLabel := fmt.Sprintf("%s Parameters for %s", k, trimLabel(bundleName))
+			if len(bladeMap[k]) > 0 {
+				bladeLabel = bladeMap[k]
+			}
 			if len(v) > 0 {
 				step := Step{
 					Name:     k,
-					Label:    fmt.Sprintf("%s Parameters for %s", k, trimLabel(bundleName)),
+					Label:    bladeLabel,
 					Elements: v,
 				}
 				UIDef.Parameters.Steps = append(UIDef.Parameters.Steps, step)

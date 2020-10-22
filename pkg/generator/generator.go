@@ -293,7 +293,6 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 	customRPTemplate, err := template.NewCnabCustomRPTemplate(
 		bundle.Name,
 		bundleTag,
-		options.IncludeCustomResource,
 	)
 
 	if err != nil {
@@ -316,7 +315,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 	}
 
 	if options.IncludeCustomResource {
-
+		customResourceName := fmt.Sprintf("concat('%s/',parameters('namespace'))", template.CustomRPName)
 		customResourceProperties := template.CustomProviderResourceProperties{
 			Credentials: make(map[string]interface{}),
 			Parameters:  make(map[string]interface{}),
@@ -324,7 +323,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 		customResource := template.Resource{
 			Type:       fmt.Sprintf("Microsoft.CustomProviders/resourceProviders/%s", template.CustomRPTypeName),
 			APIVersion: template.CustomRPAPIVersion,
-			Name:       fmt.Sprintf("[concat('%s/',parameters('namespace'))]", template.CustomRPName),
+			Name:       fmt.Sprintf("[%s]", customResourceName),
 			Location:   "[parameters('location')]",
 			DependsOn:  []string{template.CustomRPName},
 			Properties: customResourceProperties,
@@ -390,6 +389,30 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 			customResourceProperties.Credentials[credentialKey] = fmt.Sprintf("[parameters('%s')]", credentialKey)
 		}
 		customRPTemplate.Resources = append(customRPTemplate.Resources, customResource)
+
+		customRPTemplate.Outputs["Installation"] = template.Output{
+			Type:  "string",
+			Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',parameters('namespace'))).Installation]", template.CustomRPName, template.CustomRPTypeName),
+		}
+
+		for k, v := range bundle.Outputs {
+			if v.AppliesTo("install") || v.AppliesTo("upgrade") {
+				sensitive, err := bundle.IsOutputSensitive(k)
+				if err != nil {
+					return nil, nil, fmt.Errorf("Failed to check of output %s is sensitive: %w", k, err)
+				}
+				if !sensitive {
+					armType, err := toARMType(bundle.Definitions[v.Definition].Type.(string), false)
+					if err != nil {
+						return nil, nil, fmt.Errorf("Failed to get ARM type of output %s: %w", k, err)
+					}
+					customRPTemplate.Outputs[k] = template.Output{
+						Type:  armType,
+						Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',parameters('namespace'))).%s]", template.CustomRPName, template.CustomRPTypeName, k),
+					}
+				}
+			}
+		}
 	}
 	return customRPTemplate, bundle, nil
 }
@@ -424,6 +447,25 @@ func GenerateFiles(options common.BundleDetails) error {
 		}
 	}
 	return nil
+}
+
+func GenerateManagedAppDefinitionTemplate(options common.BundleDetails, packageUri string) (*template.Template, *bundle.Bundle, error) {
+
+	bundle, _, err := common.GetBundleDetails(options)
+	if err != nil {
+		return nil, nil, err
+	}
+	generatedTemplate, err := template.NewCnabMAnagedAppDefinitionTemplate(
+		bundle.Name,
+		bundle.Description,
+		packageUri,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return generatedTemplate, bundle, nil
 }
 
 func setAKSParameters(generatedTemplate *template.Template, bundle *bundle.Bundle) {

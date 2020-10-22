@@ -18,7 +18,7 @@ type Template struct {
 	Parameters     map[string]Parameter   `json:"parameters"`
 	Variables      map[string]interface{} `json:"variables"`
 	Resources      []Resource             `json:"resources"`
-	Outputs        Outputs                `json:"outputs"`
+	Outputs        map[string]Output      `json:"outputs"`
 }
 
 // Metadata defines the metadata for a template parameter
@@ -101,7 +101,7 @@ type ContainerProperties struct {
 	EnvironmentVariables []EnvironmentVariable `json:"environmentVariables"`
 	Command              []string              `json:"command"`
 	Resources            *Resources            `json:"resources"`
-	VolumeMounts         []VolumeMount         `json:"volumeMounts"`
+	VolumeMounts         []VolumeMount         `json:"volumeMounts,omitempty"`
 }
 
 // Container defines the properties of a container in a container group
@@ -131,7 +131,7 @@ type Requests struct {
 type Volume struct {
 	Name      string            `json:"name,omitempty"`
 	AzureFile *AzureFileVolume  `json:"azureFile,omitempty"`
-	Secret    map[string]string `json:"secret"`
+	Secret    map[string]string `json:"secret,omitempty"`
 }
 
 // AzureFileVolume defines the properties of an Azure File share volume.
@@ -189,6 +189,35 @@ type CustomProviderProperties struct {
 	ResourceTypes []CustomProviderResourceType `json:"resourceTypes,omitempty"`
 }
 
+// ApplicationDefinitionProperties define the properties for an ApplicationDefinition
+type ApplicationDefinitionProperties struct {
+	LockLevel          string             `json:"locklevel"`
+	Authorizations     []string           `json:"authorizations,omitempty"`
+	Description        string             `json:"description"`
+	DisplayName        string             `json:"displayName"`
+	PackageFileUri     string             `json:"packageFileUri"`
+	ManagementPolicy   ManagementPolicy   `json:"managementPolicy"`
+	LockingPolicy      LockingPolicy      `json:"lockingPolicy"`
+	NotificationPolicy NotificationPolicy `json:"notificationPolicy"`
+	DeploymentPolicy   DeploymentPolicy   `json:"deploymentPolicy"`
+}
+
+type ManagementPolicy struct {
+	Mode string `json:"mode"`
+}
+
+type LockingPolicy struct {
+	AllowedActions []string `json:"allowedActions"`
+}
+
+type NotificationPolicy struct {
+	NotificationEndpoints []string `json:"notificationEndpoints"`
+}
+
+type DeploymentPolicy struct {
+	DeploymentMode string `json:"deploymentMode"`
+}
+
 // CustomProviderAction defines a custom provider action
 type CustomProviderAction struct {
 	Name        string `json:"name"`
@@ -235,9 +264,6 @@ type Output struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
 }
-
-// Outputs defines the outputs in the genreted template
-type Outputs map[string]Output
 
 // SetDeploymentScriptEnvironmentVariable sets an environment variable for the deployment script
 func (template *Template) SetDeploymentScriptEnvironmentVariable(environmentVariable EnvironmentVariable) error {

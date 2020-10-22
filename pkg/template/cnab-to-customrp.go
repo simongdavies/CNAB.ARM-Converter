@@ -12,7 +12,7 @@ const CustomRPAPIVersion = "2018-09-01-preview"
 const CustomRPTypeName = "installs"
 
 // NewCnabCustomRPTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabCustomRPTemplate(bundleName string, bundleImage string, generateCustomResource bool) (*Template, error) {
+func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, error) {
 
 	resources := []Resource{
 		{
@@ -89,6 +89,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, generateCust
 			Type:       "Microsoft.Storage/storageAccounts/tableServices/tables",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'),'/default/',variables('stateTableName'))]",
 			APIVersion: "2019-06-01",
+			Location:   "[variables('storage_location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -97,6 +98,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, generateCust
 			Type:       "Microsoft.Storage/storageAccounts/tableServices/tables",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'),'/default/',variables('aysncOpTableName'))]",
 			APIVersion: "2019-06-01",
+			Location:   "[variables('storage_location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -168,7 +170,8 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, generateCust
 							Image: "cnabquickstarts.azurecr.io/cnabcustomrphandler:latest",
 							Ports: []ContainerPorts{
 								{
-									Port: "[variables('port')]",
+									Port:     "[variables('port')]",
+									Protocol: "tcp",
 								},
 							},
 							EnvironmentVariables: []EnvironmentVariable{
@@ -381,6 +384,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, generateCust
 		Resources:      resources,
 		Parameters:     parameters,
 		Variables:      variables,
+		Outputs:        make(map[string]Output),
 	}
 
 	resource, err := template.FindResource(CustomRPContainerGroupName)

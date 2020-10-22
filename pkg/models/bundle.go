@@ -26,6 +26,7 @@ const (
 	UIDefPath                   string           = "/api/generate/uidef"
 	CustomRPPath                string           = "/api/customrp"
 	ManagedAppPath              string           = "/api/managedapp"
+	ManagedAppDefinitionPath    string           = "/api/appdefinition"
 	BundleContext               BundleContextKey = "bundle"
 )
 
@@ -56,6 +57,7 @@ func BundleCtx(next http.Handler) http.Handler {
 		imageName = strings.TrimPrefix(imageName, BundlePath)
 		imageName = strings.TrimPrefix(imageName, CustomRPPath)
 		imageName = strings.TrimPrefix(imageName, ManagedAppPath)
+		imageName = strings.TrimPrefix(imageName, ManagedAppDefinitionPath)
 		imageName = strings.TrimPrefix(imageName, "/")
 
 		if len(imageName) == 0 {

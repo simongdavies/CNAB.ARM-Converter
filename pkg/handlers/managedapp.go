@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"get.porter.sh/porter/pkg/porter"
 	"github.com/go-chi/chi"
@@ -21,11 +22,19 @@ const mainTemplateFileName = "mainTemplate.json"
 const createUIDefFileName = "createUiDefinition.json"
 const viewDefFileName = "viewDefinition.json"
 
-// NewNestedDeploymentHandler is the router for Nested Resource generation requests
+// NewManagedAppHandler is the router for Managed App generation requests
 func NewManagedAppHandler() chi.Router {
 	r := chi.NewRouter()
 	r.Use(models.BundleCtx)
 	r.Get("/*", managedAppHandler)
+	return r
+}
+
+// NewManagedAppDefinitionHandler is the router for Managed App generation requests
+func NewManagedAppDefinitionHandler() chi.Router {
+	r := chi.NewRouter()
+	r.Use(models.BundleCtx)
+	r.Get("/*", managedAppDefinitionHandler)
 	return r
 }
 
@@ -90,16 +99,62 @@ func managedAppHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	viewDefFile, err := zipWriter.Create(viewDefFileName)
+	if err != nil {
+		_ = render.Render(w, r, helpers.ErrorInternalServerErrorFromError(fmt.Errorf("Error creating View Def file: %w", err)))
+		return
+	}
+
+	viewDef := uidefinition.NewViewDefinition(bundledef.Name, bundledef.Description)
+
+	if err = common.WriteOutput(viewDefFile, viewDef, options.Indent); err != nil {
+		_ = render.Render(w, r, helpers.ErrorInternalServerErrorFromError(fmt.Errorf("Failed to write view definition output, %w", err)))
+		return
+	}
+
 	if err = zipWriter.Close(); err != nil {
 		_ = render.Render(w, r, helpers.ErrorInternalServerErrorFromError(fmt.Errorf("Failed to close zip archive, %w", err)))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment;filename=application.zip")
 	_, err = w.Write(buf.Bytes())
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInternalServerErrorFromError(fmt.Errorf("Failed to write managed app zip: %w", err)))
 		return
+	}
+
+}
+
+func managedAppDefinitionHandler(w http.ResponseWriter, r *http.Request) {
+	bundle := r.Context().Value(models.BundleContext).(*models.Bundle)
+	originalRequestUri := r.Context().Value(common.RequestURIContext).(string)
+	packageUri := strings.Replace(originalRequestUri, models.ManagedAppDefinitionPath, models.ManagedAppPath, 1)
+	opts := porter.BundlePullOptions{
+		InsecureRegistry: bundle.InsecureRegistry,
+		Force:            bundle.Force,
+		Tag:              bundle.Ref,
+	}
+
+	options := common.BundleDetails{
+		BundleLoc: "",
+		Options: common.Options{
+			Indent:            true,
+			OutputWriter:      w,
+			Simplify:          bundle.Simplyfy,
+			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
+			BundlePullOptions: &opts,
+			Timeout:           bundle.Timeout,
+		},
+	}
+	generatedTemplate, _, err := generator.GenerateManagedAppDefinitionTemplate(options, packageUri)
+	if err != nil {
+		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate managed app definition template for image: %s error: %v", bundle.Ref, err)))
+	}
+	err = common.WriteOutput(w, generatedTemplate, options.Indent)
+	if err != nil {
+		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to write  managed app definition template to response for image: %s error: %v", bundle.Ref, err)))
 	}
 
 }

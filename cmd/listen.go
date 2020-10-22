@@ -46,6 +46,7 @@ func Listen() {
 	router.Handle(models.BundlePath+"/*", handlers.NewBundleHandler())
 	router.Handle(models.CustomRPPath+"/*", handlers.NewCustomRPHandler())
 	router.Handle(models.ManagedAppPath+"/*", handlers.NewManagedAppHandler())
+	router.Handle(models.ManagedAppDefinitionPath+"/*", handlers.NewManagedAppDefinitionHandler())
 	log.Infof("Starting to listen on port  %s", port)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), router)
 	if err != nil {
