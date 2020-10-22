@@ -1,7 +1,10 @@
 package uidefinition
 
 type ViewDefinition struct {
-	Views []View `json:"views,omitempty"`
+	Schema         string   `json:"$schema"`
+	ContentVersion string   `json:"contentVersion"`
+	Views          []View   `json:"views,omitempty"`
+	Commands       []string `json:"commands"`
 }
 
 type View struct {
