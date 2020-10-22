@@ -9,13 +9,13 @@ func NewViewDefinition(bundleName string, bundleDescription string) *ViewDefinit
 		ContentVersion: "0.0.0.1",
 		Views: []View{
 			{
-				Kind: "Oveview",
+				Kind: "Overview",
 				Properties: ViewProperties{
 					Header:      strings.Title(strings.ReplaceAll(bundleName, "-", " ")),
 					Description: bundleDescription,
+					Commands:    []string{},
 				},
 			},
 		},
-		Commands: []string{},
 	}
 }
