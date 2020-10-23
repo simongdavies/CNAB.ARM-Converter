@@ -315,7 +315,16 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 	}
 
 	if options.IncludeCustomResource {
-		customResourceName := fmt.Sprintf("concat('%s/',parameters('namespace'))", template.CustomRPName)
+
+		customRPTemplate.Parameters["resource_name"] = template.Parameter{
+			Type: "string",
+			Metadata: &template.Metadata{
+				Description: "The name of the custom resource instance to create",
+			},
+			DefaultValue: "[deployment().name]",
+		}
+
+		customResourceName := fmt.Sprintf("concat('%s/',parameters('resource_name'))", template.CustomRPName)
 		customResourceProperties := template.CustomProviderResourceProperties{
 			Credentials: make(map[string]interface{}),
 			Parameters:  make(map[string]interface{}),
@@ -392,7 +401,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 		customRPTemplate.Outputs["Installation"] = template.Output{
 			Type:  "string",
-			Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',parameters('namespace'))).Installation]", template.CustomRPName, template.CustomRPTypeName),
+			Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',parameters('resource_name'))).Installation]", template.CustomRPName, template.CustomRPTypeName),
 		}
 
 		for k, v := range bundle.Outputs {
@@ -408,7 +417,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 					}
 					customRPTemplate.Outputs[k] = template.Output{
 						Type:  armType,
-						Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',parameters('namespace'))).%s]", template.CustomRPName, template.CustomRPTypeName, k),
+						Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',parameters('resource_name'))).%s]", template.CustomRPName, template.CustomRPTypeName, k),
 					}
 				}
 			}
