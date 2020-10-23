@@ -178,6 +178,7 @@ type Resource struct {
 	Location   string      `json:"location"`
 	Sku        *Sku        `json:"sku,omitempty"`
 	Kind       string      `json:"kind,omitempty"`
+	ManagedBy  string      `json:"managedBy,omitempty"`
 	DependsOn  []string    `json:"dependsOn,omitempty"`
 	Identity   *Identity   `json:"identity,omitempty"`
 	Properties interface{} `json:"properties,omitempty"`
