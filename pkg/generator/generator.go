@@ -304,7 +304,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 		customProviderAction := template.CustomProviderAction{
 			Name:        customActions[i],
-			Endpoint:    "[concat('https://',variables('endPointDNSName'))]",
+			Endpoint:    "[concat('https://',variables('endPointDNSName'),'/{requestPath}')]",
 			RoutingType: "Proxy",
 		}
 

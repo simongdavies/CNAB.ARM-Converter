@@ -150,7 +150,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-
+	//TODO update CLI options to support managed app, app definition and solution template
 	rootCmd.Flags().StringVarP(&bundleFileName, "file", "f", "bundle.json", "name of bundle file to generate template for , default is bundle.json in the current directory")
 	rootCmd.Flags().StringVarP(&outputFileName, "output", "o", "azuredeploy.json", "file name for generated template,default is azuredeploy.json")
 	rootCmd.Flags().BoolVar(&overwrite, "overwrite", false, "specifies if to overwrite the output file if it already exists, default is false")
