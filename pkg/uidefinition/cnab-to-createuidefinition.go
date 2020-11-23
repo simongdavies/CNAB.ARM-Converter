@@ -150,7 +150,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 		settings.DisplayElements.SortByDisplayOrder()
 
-		allSettings := []DisplayElements{}
+		allSettings := make([]DisplayElements, 2)
 
 		for _, val := range settings.Elements {
 			// Only process setting if the parameter is in the template and if hide is not set and if customRPUI then skip kubeconfig as UI has been generated to select this.
@@ -233,8 +233,6 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 	}
 
-	//TODO sort the blades by display order
-
 	UIDef.Parameters.Basics = elementsMap["basics"]
 	type bladeDetails struct {
 		Name  string
@@ -243,6 +241,9 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 	bladeDisplayOrder := make([]bladeDetails, len(settings.Blades))
 
 	for k, v := range settings.Blades {
+		if v.Label == "" {
+			return nil, fmt.Errorf("No Label provided for blade %s", k)
+		}
 		b := bladeDetails{
 			Name:  k,
 			Order: v.DisplayOrder,
@@ -255,16 +256,13 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		return bladeDisplayOrder[i].Order < bladeDisplayOrder[j].Order
 	})
 
-	for k, v := range elementsMap {
-		bladeLabel := fmt.Sprintf("%s Parameters for %s", k, trimLabel(bundleName))
-		if settings.Blades[k].Label != "" {
-			bladeLabel = settings.Blades[k].Label
-		}
-		if len(v) > 0 {
+	for _, v := range bladeDisplayOrder {
+
+		if len(elementsMap[v.Name]) > 0 {
 			step := Step{
-				Name:     k,
-				Label:    bladeLabel,
-				Elements: v,
+				Name:     v.Name,
+				Label:    settings.Blades[v.Name].Label,
+				Elements: elementsMap[v.Name],
 			}
 			UIDef.Parameters.Steps = append(UIDef.Parameters.Steps, step)
 		}
