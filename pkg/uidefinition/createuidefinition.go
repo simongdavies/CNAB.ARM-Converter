@@ -151,7 +151,12 @@ type PasswordOptions struct {
 	HideConfirmation bool `json:"hideConfirmation,omitempty"`
 }
 
-type CustomSetting struct {
+type Blade struct {
+	Label        string `json:"label,omitempty"`
+	DisplayOrder int    `json:"displayOrder,omitempty"`
+}
+
+type DisplayElement struct {
 	Name              string `json:"name,omitempty"`
 	DisplayName       string `json:"displayName,omitempty"`
 	DisplayOrder      int    `json:"displayOrder,omitempty"`
@@ -160,48 +165,54 @@ type CustomSetting struct {
 	ValidationMessage string `json:"validationMessage,omitempty"`
 	Tooltip           string `json:"toolTip,omitempty"`
 	Bladename         string `json:"bladeName,omitempty"`
-	Bladetitle        string `json:"bladetitle,omitempty"`
 	Hide              bool   `json:"hide,omitempty"`
 }
 
-type CustomSettings []CustomSetting
+type DisplayElements struct {
+	Elements []DisplayElement `json:"elements,omitempty"`
+}
 
-type by func(p1, p2 *CustomSetting) bool
+type CustomSettings struct {
+	DisplayElements
+	Blades map[string]Blade `json:"blades,omitempty"`
+}
 
-func (by by) Sort(settings CustomSettings) {
-	cs := &customSettingsSorter{
+type by func(p1, p2 *DisplayElement) bool
+
+func (by by) Sort(settings DisplayElements) {
+	cs := &displayElementsSorter{
 		settings: settings,
 		by:       by,
 	}
 	sort.Sort(cs)
 }
 
-type customSettingsSorter struct {
-	settings CustomSettings
-	by       func(p1, p2 *CustomSetting) bool
+type displayElementsSorter struct {
+	settings DisplayElements
+	by       func(p1, p2 *DisplayElement) bool
 }
 
-func (cs *customSettingsSorter) Len() int {
-	return len(cs.settings)
+func (cs *displayElementsSorter) Len() int {
+	return len(cs.settings.Elements)
 }
 
-func (cs *customSettingsSorter) Swap(i, j int) {
-	cs.settings[i], cs.settings[j] = cs.settings[j], cs.settings[i]
+func (cs *displayElementsSorter) Swap(i, j int) {
+	cs.settings.Elements[i], cs.settings.Elements[j] = cs.settings.Elements[j], cs.settings.Elements[i]
 }
 
-func (cs *customSettingsSorter) Less(i, j int) bool {
-	return cs.by(&cs.settings[i], &cs.settings[j])
+func (cs *displayElementsSorter) Less(i, j int) bool {
+	return cs.by(&cs.settings.Elements[i], &cs.settings.Elements[j])
 }
 
-func (c CustomSettings) SortByName() {
-	f := func(c1, c2 *CustomSetting) bool {
+func (c DisplayElements) SortByName() {
+	f := func(c1, c2 *DisplayElement) bool {
 		return c1.Name < c2.Name
 	}
 	by(f).Sort(c)
 }
 
-func (c CustomSettings) SortByDisplayOrder() {
-	f := func(c1, c2 *CustomSetting) bool {
+func (c DisplayElements) SortByDisplayOrder() {
+	f := func(c1, c2 *DisplayElement) bool {
 		return c1.DisplayOrder < c2.DisplayOrder
 	}
 	by(f).Sort(c)

@@ -90,8 +90,6 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 	elementsMap["basics"] = []Element{}
 	elementsMap["Additional"] = []Element{}
 
-	bladeMap := map[string]string{}
-
 	if _, aks := generatedTemplate.Parameters[common.AKSResourceParameterName]; aks && useAKS && !customRPUI {
 		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "aksSelector",
@@ -139,8 +137,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 		outputs[common.KubeConfigParameterName] = "[first(steps('basics').aksKubeConfig.kubeconfigs).value]"
 	}
-
-	settings := make(CustomSettings, 0)
+	var settings CustomSettings
 	if customSettings := custom["com.azure.creatuidef"]; customSettings != nil {
 		jsonData, err := json.Marshal(custom["com.azure.creatuidef"])
 		if err != nil {
@@ -151,37 +148,35 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 			return nil, fmt.Errorf("Unable to de-serialise Custom UI settings from JSON %w", err)
 		}
 
-		settings.SortByDisplayOrder()
+		settings.DisplayElements.SortByDisplayOrder()
 
-		allSettings := []CustomSettings{
-			// OrderedElements
-			make(CustomSettings, 0),
-			// UnorderedElements
-			make(CustomSettings, 0),
-		}
+		allSettings := []DisplayElements{}
 
-		for _, val := range settings {
+		for _, val := range settings.Elements {
 			// Only process setting if the parameter is in the template and if hide is not set and if customRPUI then skip kubeconfig as UI has been generated to select this.
 			if _, ok := generatedTemplate.Parameters[val.Name]; !ok || (val.Hide && !isRequired(generatedTemplate.Parameters[val.Name].DefaultValue)) || strings.ToLower(val.Name) == common.KubeConfigParameterName {
 				continue
 			}
 			// two arrays first contains display ordered settings, second contains settings with no order
 			if val.DisplayOrder > 0 {
-				allSettings[0] = append(allSettings[0], val)
+				allSettings[0].Elements = append(allSettings[0].Elements, val)
 			} else {
-				allSettings[1] = append(allSettings[1], val)
+				allSettings[1].Elements = append(allSettings[1].Elements, val)
 			}
 		}
 
 		for _, filteredSettings := range allSettings {
 
-			for _, val := range filteredSettings {
+			for _, val := range filteredSettings.Elements {
 				step := "basics"
 				if len(val.Bladename) > 0 {
 					step = val.Bladename
 					if _, ok := elementsMap[step]; !ok {
-						elementsMap[step] = make([]Element, 0)
-						bladeMap[val.Bladename] = val.Bladetitle
+						if _, ok := settings.Blades[val.Bladename]; ok {
+							elementsMap[step] = make([]Element, 0)
+						} else {
+							return nil, fmt.Errorf("Bladename %s specified for element %s does not exist", val.Bladename, val.Name)
+						}
 					}
 				}
 				tooltip := trimLabel(generatedTemplate.Parameters[val.Name].Metadata.Description)
@@ -238,23 +233,50 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 	}
 
-	for k, v := range elementsMap {
-		if k == "basics" {
-			UIDef.Parameters.Basics = v
-		} else {
-			bladeLabel := fmt.Sprintf("%s Parameters for %s", k, trimLabel(bundleName))
-			if len(bladeMap[k]) > 0 {
-				bladeLabel = bladeMap[k]
-			}
-			if len(v) > 0 {
-				step := Step{
-					Name:     k,
-					Label:    bladeLabel,
-					Elements: v,
-				}
-				UIDef.Parameters.Steps = append(UIDef.Parameters.Steps, step)
-			}
+	//TODO sort the blades by display order
+
+	UIDef.Parameters.Basics = elementsMap["basics"]
+	type bladeDetails struct {
+		Name  string
+		Order int
+	}
+	bladeDisplayOrder := make([]bladeDetails, len(settings.Blades))
+
+	for k, v := range settings.Blades {
+		b := bladeDetails{
+			Name:  k,
+			Order: v.DisplayOrder,
 		}
+		bladeDisplayOrder = append(bladeDisplayOrder, b)
+
+	}
+
+	sort.SliceStable(bladeDisplayOrder, func(i, j int) bool {
+		return bladeDisplayOrder[i].Order < bladeDisplayOrder[j].Order
+	})
+
+	for k, v := range elementsMap {
+		bladeLabel := fmt.Sprintf("%s Parameters for %s", k, trimLabel(bundleName))
+		if settings.Blades[k].Label != "" {
+			bladeLabel = settings.Blades[k].Label
+		}
+		if len(v) > 0 {
+			step := Step{
+				Name:     k,
+				Label:    bladeLabel,
+				Elements: v,
+			}
+			UIDef.Parameters.Steps = append(UIDef.Parameters.Steps, step)
+		}
+	}
+
+	if len(elementsMap["Additional"]) > 0 {
+		step := Step{
+			Name:     "Additional",
+			Label:    "Additional Parameters",
+			Elements: elementsMap["Additional"],
+		}
+		UIDef.Parameters.Steps = append(UIDef.Parameters.Steps, step)
 	}
 
 	UIDef.Parameters.Outputs = outputs
@@ -262,8 +284,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 }
 
 func hasCustomSettings(settings CustomSettings, name string) bool {
-	index := sort.Search(len(settings), func(i int) bool { return settings[i].Name >= name })
-	result := index < len(settings) && settings[index].Name == name
+	index := sort.Search(len(settings.Elements), func(i int) bool { return settings.Elements[i].Name >= name })
+	result := index < len(settings.Elements) && settings.Elements[index].Name == name
 	return result
 }
 
