@@ -11,6 +11,23 @@ const (
 	DeploymentScriptName = "[variables('deploymentScriptResourceName')]"
 )
 
+// Type defines type definition in custom metadata in a bundle
+
+type Type struct {
+	Actions    map[string]string    `json:"actions"`
+	Type       string               `json:"type"`
+	Id         string               `json:"id"`
+	ChildTypes map[string]ChildType `json:"childtypes"`
+}
+
+type ChildType struct {
+	CreateUpdateAction string            `json:"createupdate"`
+	DeleteAction       string            `json:"delete"`
+	GetAction          string            `json:"get"`
+	ListAction         string            `json:"list"`
+	Actions            map[string]string `json:"actions"`
+}
+
 // Template defines an ARM Template that can run a CNAB Bundle
 type Template struct {
 	Schema         string                 `json:"$schema"`
@@ -226,7 +243,7 @@ type CustomProviderAction struct {
 	Endpoint    string `json:"endpoint"`
 }
 
-// CustomProviderResourceType defines a custom provider action
+// CustomProviderResourceType defines a custom provider resource type
 type CustomProviderResourceType struct {
 	Name        string `json:"name"`
 	RoutingType string `json:"routingType"`

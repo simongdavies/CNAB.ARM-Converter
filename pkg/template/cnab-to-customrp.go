@@ -1,6 +1,7 @@
 package template
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
@@ -12,7 +13,11 @@ const CustomRPAPIVersion = "2018-09-01-preview"
 const CustomRPTypeName = "installs"
 
 // NewCnabCustomRPTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, error) {
+func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeInfo *Type) (*Template, error) {
+	typeName := CustomRPTypeName
+	if customTypeInfo != nil {
+		typeName = customTypeInfo.Type
+	}
 
 	resources := []Resource{
 		{
@@ -229,7 +234,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 								},
 								{
 									Name:  "CUSTOM_RP_TYPE",
-									Value: fmt.Sprintf("[concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'), '/%s')]", CustomRPName, CustomRPTypeName),
+									Value: fmt.Sprintf("[concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'), '/%s')]", CustomRPName, typeName),
 								},
 							},
 							Command: []string{
@@ -312,7 +317,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 			Properties: CustomProviderProperties{
 				ResourceTypes: []CustomProviderResourceType{
 					{
-						Name:        CustomRPTypeName,
+						Name:        typeName,
 						Endpoint:    "[concat('https://',variables('endPointDNSName'),'/{requestPath}')]",
 						RoutingType: "Proxy",
 					},
@@ -397,5 +402,30 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string) (*Template, 
 	userIdentity := make(map[string]interface{}, 1)
 	userIdentity["[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities',variables('msi_name'))]"] = &emptystruct
 	resource.Identity.UserAssignedIdentities = userIdentity
+
+	resource, err = template.FindResource(CustomRPName)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to find custom resource: %w", err)
+	}
+
+	if customTypeInfo != nil {
+		customProviderProperties, ok := resource.Properties.(CustomProviderProperties)
+		if !ok {
+			return nil, errors.New("Failed to get custom resource properties")
+		}
+
+		for nestedTypeName := range customTypeInfo.ChildTypes {
+
+			customProviderProperties.ResourceTypes = append(customProviderProperties.ResourceTypes, CustomProviderResourceType{
+				Name:        fmt.Sprintf("%s/%s", typeName, nestedTypeName),
+				Endpoint:    "[concat('https://',variables('endPointDNSName'),'/{requestPath}')]",
+				RoutingType: "Proxy",
+			})
+		}
+
+		resource.Properties = customProviderProperties
+	}
+
 	return &template, nil
+
 }

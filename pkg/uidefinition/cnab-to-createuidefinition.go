@@ -238,7 +238,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		Name  string
 		Order int
 	}
-	bladeDisplayOrder := make([]bladeDetails, len(settings.Blades))
+	bladeDisplayOrder := make([]bladeDetails, 0)
 
 	for k, v := range settings.Blades {
 		if v.Label == "" {

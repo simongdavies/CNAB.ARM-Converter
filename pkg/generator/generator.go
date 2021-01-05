@@ -2,7 +2,9 @@ package generator
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+
 	"io"
 	"reflect"
 	"sort"
@@ -290,16 +292,29 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 		return nil, nil, err
 	}
 
+	var customTypeInfo *template.Type
+	customTypeInfo, err = getCustomTypeInfo(bundle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	typeName := template.CustomRPTypeName
+
+	if customTypeInfo != nil {
+		typeName = customTypeInfo.Type
+	}
+
 	customRPTemplate, err := template.NewCnabCustomRPTemplate(
 		bundle.Name,
 		bundleTag,
-	)
+		customTypeInfo)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	customActions := getCustomActions(bundle)
+	customActions := getCustomActions(bundle, customTypeInfo)
+
 	for i := range customActions {
 
 		customProviderAction := template.CustomProviderAction{
@@ -316,13 +331,13 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 	if options.IncludeCustomResource {
 
-		customResourceName := fmt.Sprintf("concat('%s/',deployment().name)", template.CustomRPName)
+		customResourceName := fmt.Sprintf("concat('%s/',deployment().name)", typeName)
 		customResourceProperties := template.CustomProviderResourceProperties{
 			Credentials: make(map[string]interface{}),
 			Parameters:  make(map[string]interface{}),
 		}
 		customResource := template.Resource{
-			Type:       fmt.Sprintf("Microsoft.CustomProviders/resourceProviders/%s", template.CustomRPTypeName),
+			Type:       fmt.Sprintf("Microsoft.CustomProviders/resourceProviders/%s", typeName),
 			APIVersion: template.CustomRPAPIVersion,
 			Name:       fmt.Sprintf("[%s]", customResourceName),
 			Location:   "[parameters('location')]",
@@ -337,7 +352,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 		for _, parameterKey := range parameterKeys {
 			parameter := bundle.Parameters[parameterKey]
-			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) {
+			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) && (customTypeInfo != nil && customTypeInfo.Id != parameterKey) {
 
 				definition := bundle.Definitions[parameter.Definition]
 				templateParameter, _, err := genParameter(parameter, definition)
@@ -393,7 +408,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 		customRPTemplate.Outputs["Installation"] = template.Output{
 			Type:  "string",
-			Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',deployment().name)).Installation]", template.CustomRPName, template.CustomRPTypeName),
+			Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',deployment().name)).Installation]", template.CustomRPName, typeName),
 		}
 
 		for k, v := range bundle.Outputs {
@@ -409,7 +424,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 					}
 					customRPTemplate.Outputs[k] = template.Output{
 						Type:  armType,
-						Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',deployment().name)).%s]", template.CustomRPName, template.CustomRPTypeName, k),
+						Value: fmt.Sprintf("[reference(concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',deployment().name)).%s]", template.CustomRPName, typeName, k),
 					}
 				}
 			}
@@ -538,11 +553,14 @@ func getParameterKeys(bundle bundle.Bundle) ([]string, error) {
 	return parameterKeys, nil
 }
 
-func getCustomActions(bundle *bundle.Bundle) []string {
+func getCustomActions(bundle *bundle.Bundle, customTypeInfo *template.Type) []string {
 	var actions []string
 	for name := range bundle.Actions {
 		if isCustomAction(name) {
-			actions = append(actions, name)
+			typedName := getCustomActionTypedName(customTypeInfo, name)
+			if typedName != "" {
+				actions = append(actions, typedName)
+			}
 		}
 	}
 	return actions
@@ -555,6 +573,79 @@ func isCustomAction(name string) bool {
 		}
 	}
 	return true
+}
+
+func getCustomActionTypedName(customTypeInfo *template.Type, name string) string {
+
+	if customTypeInfo == nil {
+		return name
+	}
+	for action, actionName := range customTypeInfo.Actions {
+		if strings.EqualFold(actionName, name) {
+			return fmt.Sprintf("%s/%s", customTypeInfo.Type, action)
+		}
+	}
+	for childTypeName, childType := range customTypeInfo.ChildTypes {
+		for action, actionName := range childType.Actions {
+			if strings.EqualFold(actionName, name) {
+				return fmt.Sprintf("%s/%s/%s", customTypeInfo.Type, childTypeName, action)
+			}
+		}
+	}
+	return ""
+}
+
+func getCustomTypeInfo(bundle *bundle.Bundle) (*template.Type, error) {
+	var typeInfo interface{}
+	if typeInfo = bundle.Custom["com.azure.arm"]; typeInfo == nil {
+		return nil, nil
+	}
+	var customType template.Type
+	jsonData, err := json.Marshal(bundle.Custom["com.azure.arm"])
+	if err != nil {
+		return nil, fmt.Errorf("Unable to serialise Custom Type settings to JSON %w", err)
+	}
+	err = json.Unmarshal(jsonData, &customType)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to de-serialise Custom Type settings from JSON %w", err)
+	}
+	if customType.Type == "" {
+		return nil, errors.New("Custom Type specified with no type property")
+	}
+	if customType.Id == "" {
+		return nil, fmt.Errorf("Id not specified for custom type %s", customType.Type)
+	}
+	if _, ok := bundle.Parameters[customType.Id]; !ok {
+		return nil, fmt.Errorf("Bundle Parameter %s specified as Id for Type %s does not exist", customType.Id, customType.Type)
+	}
+	for childTypeName, childType := range customType.ChildTypes {
+		actions := []string{"CreateUpdateAction", "DeleteAction", "GetAction", "ListAction"}
+		for _, childAction := range actions {
+			fieldValue := reflect.ValueOf(&childType).Elem().FieldByName(childAction).String()
+			if fieldValue == "" {
+				return nil, fmt.Errorf("Action %s for Operation %s for Child Type %s is not set", fieldValue, childAction, childTypeName)
+			} else {
+				if _, ok := bundle.Actions[fieldValue]; !ok {
+					return nil, fmt.Errorf("Action %s for Operation %s for Child Type %s does not exist", fieldValue, childAction, childTypeName)
+				} else {
+					if customAction := isCustomAction(fieldValue); !customAction {
+						return nil, fmt.Errorf("Action %s for for Operation %s Child Type %s is not a custom action", fieldValue, childAction, childTypeName)
+					}
+				}
+			}
+		}
+		for actionName, childTypeAction := range childType.Actions {
+			if _, ok := bundle.Actions[childTypeAction]; !ok {
+				return nil, fmt.Errorf("Custom action %s for action name %s for Child Type %s does not exist", childTypeAction, actionName, childTypeName)
+			} else {
+				if customAction := isCustomAction(childTypeAction); !customAction {
+					return nil, fmt.Errorf("Custom action %s for action name %s for Child Type %s is not a custom action", childTypeAction, actionName, childTypeName)
+				}
+			}
+		}
+	}
+
+	return &customType, nil
 }
 
 func getCredentialKeys(bundle bundle.Bundle) ([]string, error) {
