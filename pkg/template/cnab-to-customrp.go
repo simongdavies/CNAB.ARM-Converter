@@ -233,6 +233,14 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 									Value: "[variables('aysncOpTableName')]",
 								},
 								{
+									Name:  "RESOURCE_PROVIDER",
+									Value: "Microsoft.CustomProviders",
+								},
+								{
+									Name:  "RESOURCE_TYPE",
+									Value: CustomRPName,
+								},
+								{
 									Name:  "CUSTOM_RP_TYPE",
 									Value: fmt.Sprintf("[concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'), '/%s')]", CustomRPName, typeName),
 								},
