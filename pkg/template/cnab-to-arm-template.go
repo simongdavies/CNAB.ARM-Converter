@@ -73,7 +73,6 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Name:       "[variables('deploymentScriptResourceName')]",
 			Location:   "[variables('location')]",
 			DependsOn: []string{
-				"[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('cnab_azure_state_storage_account_name'),'default', 'porter')]",
 				"[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', variables('cnab_azure_state_storage_account_name'), 'default', variables('cnab_azure_state_fileshare'))]",
 			},
 			Identity: &Identity{
