@@ -39,7 +39,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Type:       "Microsoft.Storage/storageAccounts",
 			Name:       "[variables('cnab_azure_state_storage_account_name')]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			Sku: &Sku{
 				Name: "Standard_LRS",
 			},
@@ -59,19 +59,10 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			},
 		},
 		{
-			Type:       "Microsoft.Storage/storageAccounts/blobServices/containers",
-			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/porter')]",
-			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
-			DependsOn: []string{
-				"[variables('cnab_azure_state_storage_account_name')]",
-			},
-		},
-		{
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -350,8 +341,6 @@ func (template *Template) addAdvancedVariables() {
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
 		"porter_version":                        "[parameters('porter_version')]",
 		"timeout":                               "[parameters('timeout')]",
-		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
-		"storage_location": "canadacentral",
 	}
 
 	template.Variables = variables
@@ -373,8 +362,6 @@ func (template *Template) addSimpleVariables(bundleName string, executionTimeout
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
 		"porter_version":                        "latest",
 		"timeout":                               executionTimeout,
-		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
-		"storage_location": "canadacentral",
 	}
 
 	template.Variables = variables
@@ -389,13 +376,13 @@ func createScript(tag string) string {
 		"PORTER_VERSION=${1}",
 		"mkdir -p ${PORTER_HOME}",
 		//TODO temporary download location
-		"PORTER_DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/simongdavies/porter/releases/tags/custom | jq '.assets[]|select(.name==\"porter-linux-amd64\").browser_download_url' -r)",
-		"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_DOWNLOAD_LOCATION}",
-		//"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_URL}/${PORTER_VERSION}/porter-linux-amd64",
+		//"PORTER_DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/simongdavies/porter/releases/tags/custom | jq '.assets[]|select(.name==\"porter-linux-amd64\").browser_download_url' -r)",
+		//"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_DOWNLOAD_LOCATION}",
+		"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_URL}/${PORTER_VERSION}/porter-linux-amd64",
 		"chmod +x ${PORTER_HOME}/porter",
 		"export PATH=\"${PORTER_HOME}:${PATH}\"",
 		"${PORTER_HOME}/porter plugin install azure --version $PORTER_VERSION",
-		"echo 'default-storage-plugin = \"azure.blob\"' > ${PORTER_HOME}/config.toml",
+		"echo 'default-storage-plugin = \"azure.table\"' > ${PORTER_HOME}/config.toml",
 		"cat ${PORTER_HOME}/config.toml",
 		"DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/deislabs/cnab-azure-driver/releases/latest | jq '.assets[]|select(.name==\"cnab-azure-linux-amd64\").browser_download_url' -r)",
 		"mkdir -p ${HOME}/.cnab-azure-driver",
