@@ -407,8 +407,9 @@ func createScript(tag string) string {
 		"SUFFIX=",
 		"for env_var in ${!CNAB_CRED_FILE@};do NAME=${env_var#CNAB_CRED_FILE_};echo ${!env_var}|base64 -d > /tmp/${NAME}; done",
 		"if [[  ! -z  ${!CNAB_CRED_@} ]];then CREDSFILE=$(mktemp);CREDS=\" --cred ${CREDSFILE}\";echo {\\\"Name\\\": \\\"${2}\\\" , > ${CREDSFILE};echo \\\"Credentials\\\":[ >> ${CREDSFILE}; for env_var in ${!CNAB_CRED_@};do NAME=${env_var#CNAB_CRED_};echo ${SUFFIX}>> ${CREDSFILE};if [[ ${NAME} = FILE_* ]];then NAME=${NAME#FILE_};fi;echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${CREDSFILE};echo \\\"Source\\\": { >> ${CREDSFILE};if [[ ${env_var} = CNAB_CRED_FILE_* ]];then echo \\\"Path\\\": \\\"/tmp/${NAME}\\\" >> ${CREDSFILE};else echo \\\"Env\\\": \\\"${env_var}\\\" >> ${CREDSFILE};fi; echo }} >> ${CREDSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done;echo ]} >> ${CREDSFILE};fi",
+		//TODO update tags to reference
 		fmt.Sprintf("TAG=%s", tag),
-		"porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --tag ${TAG} -d azure",
+		"porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --reference ${TAG} -d azure",
 		//TODO deal with sensitve outputs
 		"OUTPUTS=$(porter inst outputs list -i \"${2}\" -o json)",
 		"echo OUTPUTS: ${OUTPUTS}",
