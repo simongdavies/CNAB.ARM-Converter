@@ -7,11 +7,13 @@ import (
 
 	"io"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/cnabio/cnab-go/bundle"
 	"github.com/cnabio/cnab-go/bundle/definition"
+	"github.com/containerd/containerd/log"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/common"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/uidefinition"
@@ -540,17 +542,33 @@ func getParameterKeys(bundle bundle.Bundle) ([]string, error) {
 	// Sort parameters, because Go randomizes order when iterating a map
 	var parameterKeys []string
 	for parameterKey := range bundle.Parameters {
-		// porter-debug is added automatically so can only be modified by updating porter
-		if parameterKey == "porter-debug" {
+		if isPorterParam(parameterKey) {
 			continue
 		}
 		if strings.Contains(parameterKey, "-") {
-			return nil, fmt.Errorf("Invalid Parameter name: %s.ARM template generation requires parameter names that can be used as environment variables", parameterKey)
+			return nil, fmt.Errorf("Invalid Parameter name: %s. ARM template generation requires parameter names that can be used as environment variables", parameterKey)
 		}
 		parameterKeys = append(parameterKeys, parameterKey)
 	}
 	sort.Strings(parameterKeys)
 	return parameterKeys, nil
+}
+
+func isPorterParam(parameterKey string) bool {
+
+	// Test for porter specific parameters, these do not need to be included in template and also have invalid env var names
+	porteroutput, err := regexp.Match("^porter-[\\S]*-output$", []byte(parameterKey))
+	if err != nil {
+		log.L.Debugf("Error trying to match on porter-*-output: %v", err)
+		porteroutput = true
+	}
+	porterdepoutput, err := regexp.Match(`porter-[\\S]*-[\\S]*-dep-output`, []byte(parameterKey))
+	if err != nil {
+		log.L.Debugf("Error trying to match on porter-*-*-dep-output: %v", err)
+		porteroutput = true
+	}
+
+	return parameterKey == "porter-debug" || porteroutput || porterdepoutput
 }
 
 func getCustomActions(bundle *bundle.Bundle, customTypeInfo *template.Type) []string {
