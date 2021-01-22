@@ -333,7 +333,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 	if options.IncludeCustomResource {
 
-		customResourceName := fmt.Sprintf("concat('%s/',deployment().name)", typeName)
+		customResourceName := fmt.Sprintf("concat('%s/',deployment().name)", template.CustomRPName)
 		customResourceProperties := template.CustomProviderResourceProperties{
 			Credentials: make(map[string]interface{}),
 			Parameters:  make(map[string]interface{}),
