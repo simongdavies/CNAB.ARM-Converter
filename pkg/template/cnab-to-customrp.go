@@ -44,7 +44,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts",
 			Name:       "[variables('cnab_azure_state_storage_account_name')]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('location')]",
+			Location:   "[parameters('location')]",
 			Sku: &Sku{
 				Name: "Standard_LRS",
 			},
@@ -67,7 +67,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('location')]",
+			Location:   "[parameters('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -76,7 +76,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'),'-caddy')]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('location')]",
+			Location:   "[parameters('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -85,7 +85,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/tableServices/tables",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'),'/default/',variables('stateTableName'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('location')]",
+			Location:   "[parameters('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -94,7 +94,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/tableServices/tables",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'),'/default/',variables('aysncOpTableName'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('location')]",
+			Location:   "[parameters('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -265,7 +265,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 								{
 									debug
 								}
-								',variables('endPointDNSPrefix'),'.northeurope.azurecontainer.io {
+								',variables('endPointDNSPrefix'),'.',parameters('location'),'.azurecontainer.io {
 									log {
 											output stdout
 											format console
