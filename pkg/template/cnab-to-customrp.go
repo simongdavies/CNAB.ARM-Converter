@@ -228,11 +228,11 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 								},
 								{
 									Name:  "LOG_REQUEST_BODY",
-									Value: "[(parameters('debug')]",
+									Value: "[parameters('debug')]",
 								},
 								{
 									Name:  "LOG_RESPONSE_BODY",
-									Value: "[(parameters('debug')]",
+									Value: "[parameters('debug')]",
 								},
 							},
 							Command: []string{
