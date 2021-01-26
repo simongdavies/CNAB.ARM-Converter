@@ -132,6 +132,11 @@ type UserPasswordConstraints struct {
 	ValidationMessage string `json:"validationMessage,omitempty"`
 }
 
+type CheckBoxConstraints struct {
+	Required          bool   `json:"required,omitempty"`
+	ValidationMessage string `json:"validationMessage,omitempty"`
+}
+
 type TextBoxConstraints struct {
 	Required    bool                 `json:"required,omitempty"`
 	Validations []TextboxValidations `json:"validations,omitempty"`

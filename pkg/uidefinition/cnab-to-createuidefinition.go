@@ -190,6 +190,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 				case strings.Contains(strings.ToLower(val.Name), "password") || strings.ToLower(val.UIType) == "microsoft.common.passwordbox":
 					elementsMap[step] = append(elementsMap[step], createPasswordBox(val.Name, val.DisplayName, tooltip, generatedTemplate.Parameters[val.Name].DefaultValue, val.ValidationRegex, val.ValidationMessage))
 
+				//TODO: add support for checkbox
+
 				case strings.ToLower(val.UIType) == "microsoft.common.textbox":
 					fallthrough
 
@@ -210,7 +212,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 	for name, val := range generatedTemplate.Parameters {
 		// Skip any parameters with custom ui , location or kubeconfig when processing CustomRP UI
-		if hasCustomSettings(settings, name) || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName || name == common.LocationParameterName || (name == common.DebugParameterName && customRPUI) || (name == common.KubeConfigParameterName && customRPUI) {
+		if hasCustomSettings(settings, name) || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName || name == common.LocationParameterName || (name == common.KubeConfigParameterName && customRPUI) {
 			continue
 		}
 
@@ -221,6 +223,17 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 		case strings.Contains(strings.ToLower(name), "password"):
 			elementsMap["basics"] = append(elementsMap["basics"], createPasswordBox(name, trimLabel(val.Metadata.Description), val.Metadata.Description, val.DefaultValue, "", ""))
+
+		case val.Type == "bool":
+			defaultValue, ok := val.DefaultValue.(bool)
+			if !ok {
+				defaultValue = false
+			}
+			element := createCheckBox(name, trimLabel(val.Metadata.Description), val.Metadata.Description, defaultValue, "", "")
+			if !isRequired(val.DefaultValue) {
+				step = "Additional"
+			}
+			elementsMap[step] = append(elementsMap[step], element)
 
 		default:
 			element := createTextBox(name, trimLabel(val.Metadata.Description), val.Metadata.Description, getDefaultValue(val.DefaultValue), isRequired(val.DefaultValue), "", "")
@@ -317,6 +330,24 @@ func createUserNameTextBox(name string, label string, tooltip string, defaultVal
 		Constraints: UserPasswordConstraints{
 			Required:          isRequired(defaultValue),
 			Regex:             regex,
+			ValidationMessage: validationMessage,
+		},
+		OsPlatform: Linux.String(),
+	}
+
+	return element
+}
+
+func createCheckBox(name string, label string, tooltip string, defaultValue bool, regex string, validationMessage string) Element {
+	element := Element{
+		Name:         name,
+		Type:         "Microsoft.Common.CheckBox",
+		Label:        label,
+		Tooltip:      tooltip,
+		Visible:      true,
+		DefaultValue: defaultValue,
+		Constraints: CheckBoxConstraints{
+			Required:          isRequired(defaultValue),
 			ValidationMessage: validationMessage,
 		},
 		OsPlatform: Linux.String(),

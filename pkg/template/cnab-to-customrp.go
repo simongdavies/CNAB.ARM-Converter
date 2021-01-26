@@ -44,7 +44,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts",
 			Name:       "[variables('cnab_azure_state_storage_account_name')]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			Sku: &Sku{
 				Name: "Standard_LRS",
 			},
@@ -64,19 +64,10 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			},
 		},
 		{
-			Type:       "Microsoft.Storage/storageAccounts/blobServices/containers",
-			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/porter')]",
-			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
-			DependsOn: []string{
-				"[variables('cnab_azure_state_storage_account_name')]",
-			},
-		},
-		{
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -85,7 +76,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/fileServices/shares",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'), '/default/', variables('cnab_azure_state_fileshare'),'-caddy')]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -94,7 +85,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/tableServices/tables",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'),'/default/',variables('stateTableName'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -103,7 +94,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Type:       "Microsoft.Storage/storageAccounts/tableServices/tables",
 			Name:       "[concat(variables('cnab_azure_state_storage_account_name'),'/default/',variables('aysncOpTableName'))]",
 			APIVersion: "2019-06-01",
-			Location:   "[variables('storage_location')]",
+			Location:   "[variables('location')]",
 			DependsOn: []string{
 				"[variables('cnab_azure_state_storage_account_name')]",
 			},
@@ -114,7 +105,6 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Name:       CustomRPContainerGroupName,
 			Location:   "[parameters('location')]",
 			DependsOn: []string{
-				"[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('cnab_azure_state_storage_account_name'),'default', 'porter')]",
 				"[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', variables('cnab_azure_state_storage_account_name'), 'default', variables('cnab_azure_state_fileshare'))]",
 				"[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', variables('cnab_azure_state_storage_account_name'), 'default', concat(variables('cnab_azure_state_fileshare'),'-caddy'))]",
 				"[resourceId('Microsoft.Storage/storageAccounts/tableServices/tables', variables('cnab_azure_state_storage_account_name'),'default',variables('stateTableName'))]",
@@ -233,16 +223,16 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 									Value: "[variables('aysncOpTableName')]",
 								},
 								{
-									Name:  "RESOURCE_PROVIDER",
-									Value: "Microsoft.CustomProviders",
-								},
-								{
 									Name:  "RESOURCE_TYPE",
 									Value: CustomRPName,
 								},
 								{
-									Name:  "CUSTOM_RP_TYPE",
-									Value: fmt.Sprintf("[concat(resourceId('Microsoft.CustomProviders/resourceProviders','%s'), '/%s')]", CustomRPName, typeName),
+									Name:  "LOG_REQUEST_BODY",
+									Value: "[(parameters('debug')]",
+								},
+								{
+									Name:  "LOG_RESPONSE_BODY",
+									Value: "[(parameters('debug')]",
 								},
 							},
 							Command: []string{
@@ -287,8 +277,8 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 									tls {
 										client_auth {
 											mode require_and_verify
-											trusted_leaf_cert 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
-                      trusted_leaf_cert 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
+											trusted_leaf_cert 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
+                      trusted_leaf_cert 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
 
 										}
 									}
@@ -372,7 +362,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 		"debug": {
 			Type: "bool",
 			Metadata: &Metadata{
-				Description: "Creates verbose output from cnab azure driver and custom RP",
+				Description: "Creates debug output from cnab azure driver and custom RP",
 			},
 			DefaultValue: common.ParameterDefaults["customrp_debug"],
 		},
@@ -386,7 +376,6 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 		"msi_name":                              "cnabcustomrp",
 		"roleAssignmentId":                      "[guid(concat(resourceGroup().id,variables('msi_name'), 'contributor'))]",
 		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
-		"storage_location":  "canadacentral",
 		"endPointDNSPrefix": "[replace(variables('cnab_azure_state_fileshare'),'-','')]",
 		"endPointDNSName":   "[concat(variables('endPointDNSPrefix'),'.',tolower(replace(parameters('location'),' ','')),'.azurecontainer.io')]",
 		"stateTableName":    "installstate",

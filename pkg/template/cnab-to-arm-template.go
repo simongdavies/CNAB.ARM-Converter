@@ -374,9 +374,6 @@ func createScript(tag string) string {
 		"PORTER_URL=https://cdn.porter.sh",
 		"PORTER_VERSION=${1}",
 		"mkdir -p ${PORTER_HOME}",
-		//TODO temporary download location
-		//"PORTER_DOWNLOAD_LOCATION=$( curl -sL https://api.github.com/repos/simongdavies/porter/releases/tags/custom | jq '.assets[]|select(.name==\"porter-linux-amd64\").browser_download_url' -r)",
-		//"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_DOWNLOAD_LOCATION}",
 		"curl -fsSLo ${PORTER_HOME}/porter ${PORTER_URL}/${PORTER_VERSION}/porter-linux-amd64",
 		"chmod +x ${PORTER_HOME}/porter",
 		"export PATH=\"${PORTER_HOME}:${PATH}\"",
