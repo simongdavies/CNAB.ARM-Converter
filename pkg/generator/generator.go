@@ -431,6 +431,20 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 				}
 			}
 		}
+
+		// Set managed by on ContainerGroup for CustomRP
+		// TODO: Container groups doesnt like the managedby property, once this is fixed then the code below will make sure that the custom type is deleted before the custom RP
+
+		// resource, err := customRPTemplate.FindResource(template.CustomRPContainerGroupName)
+		// if err != nil {
+		// 	return nil, nil, fmt.Errorf("Failed to find container group resource: %w", err)
+		// }
+		// resource.ManagedBy = fmt.Sprintf("[resourceId('Microsoft.CustomProviders/resourceProviders','%s')]", template.CustomRPName)
+
+		customRPTemplate.Outputs["deleteCommand"] = template.Output{
+			Type:  "string",
+			Value: fmt.Sprintf("[concat('az resource delete --ids ',resourceId('Microsoft.CustomProviders/resourceProviders','%s'),'/%s/',deployment().name)]", template.CustomRPName, typeName),
+		}
 	}
 	return customRPTemplate, bundle, nil
 }
@@ -565,7 +579,7 @@ func isPorterParam(parameterKey string) bool {
 	porterdepoutput, err := regexp.Match(`porter-[\\S]*-[\\S]*-dep-output`, []byte(parameterKey))
 	if err != nil {
 		log.L.Debugf("Error trying to match on porter-*-*-dep-output: %v", err)
-		porteroutput = true
+		porterdepoutput = true
 	}
 
 	return parameterKey == "porter-debug" || porteroutput || porterdepoutput
