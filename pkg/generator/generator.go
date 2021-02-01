@@ -354,7 +354,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 		for _, parameterKey := range parameterKeys {
 			parameter := bundle.Parameters[parameterKey]
-			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) && (customTypeInfo != nil && customTypeInfo.Id != parameterKey) {
+			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) && (customTypeInfo == nil || (customTypeInfo != nil && customTypeInfo.Id != parameterKey)) {
 
 				definition := bundle.Definitions[parameter.Definition]
 				templateParameter, _, err := genParameter(parameter, definition)
