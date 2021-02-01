@@ -381,6 +381,9 @@ func createPasswordBox(name string, label string, tooltip string, defaultValue i
 
 func createTextBox(name string, label string, tooltip string, defaultValue interface{}, required bool, regex string, validationMessage string) Element {
 
+	if label == "" {
+		label = strings.ToTitle(name)
+	}
 	element := Element{
 		Name:        name,
 		Type:        "Microsoft.Common.TextBox",
