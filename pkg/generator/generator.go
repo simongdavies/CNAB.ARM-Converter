@@ -109,7 +109,8 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 		bundleTag,
 		bundle.Outputs,
 		options.Simplify,
-		options.Timeout)
+		options.Timeout,
+		options.Debug)
 
 	if err != nil {
 		return nil, nil, err

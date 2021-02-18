@@ -65,7 +65,7 @@ var ParameterDefaults = map[string]interface{}{
 	"cnab_azure_state_storage_account_name": "[concat('cnabstate',uniqueString(resourceGroup().id))]",
 	"cnab_resource_group":                   "[resourceGroup().name]",
 	"cnab_azure_verbose":                    false,
-	"customrp_debug":                        false,
+	"debug":                                 false,
 	"cnab_delete_outputs_from_fileshare":    true,
 	"msi_name":                              "cnabinstall",
 	"porter_version":                        "latest",

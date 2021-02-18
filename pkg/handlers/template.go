@@ -60,6 +60,7 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 			ReplaceKubeconfig: bundle.ReplaceKubeconfig,
 			BundlePullOptions: &opts,
 			Timeout:           bundle.Timeout,
+			Debug:             bundle.Debug,
 		},
 	}
 	generatedTemplate, _, err := generator.GenerateTemplate(options)

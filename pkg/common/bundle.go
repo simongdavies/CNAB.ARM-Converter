@@ -28,6 +28,7 @@ type Options struct {
 	GenerateUI            bool
 	IncludeCustomResource bool
 	CustomRPTemplate      bool
+	Debug                 bool
 	Timeout               int
 	UIWriter              io.Writer
 	BundlePullOptions     *porter.BundlePullOptions

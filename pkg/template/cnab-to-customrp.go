@@ -364,7 +364,7 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 			Metadata: &Metadata{
 				Description: "Creates debug output from cnab azure driver and custom RP",
 			},
-			DefaultValue: common.ParameterDefaults["customrp_debug"],
+			DefaultValue: common.ParameterDefaults["debug"],
 		},
 	}
 
@@ -375,11 +375,10 @@ func NewCnabCustomRPTemplate(bundleName string, bundleImage string, customTypeIn
 		"contributorRoleDefinitionId":           "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
 		"msi_name":                              "cnabcustomrp",
 		"roleAssignmentId":                      "[guid(concat(resourceGroup().id,variables('msi_name'), 'contributor'))]",
-		//TODO remove hardcoded storage location once blob index feature is available https://docs.microsoft.com/en-us/azure/storage/blobs/storage-manage-find-blobs?tabs=azure-portal#regional-availability-and-storage-account-support
-		"endPointDNSPrefix": "[replace(variables('cnab_azure_state_fileshare'),'-','')]",
-		"endPointDNSName":   "[concat(variables('endPointDNSPrefix'),'.',tolower(replace(parameters('location'),' ','')),'.azurecontainer.io')]",
-		"stateTableName":    "installstate",
-		"aysncOpTableName":  "asyncops",
+		"endPointDNSPrefix":                     "[replace(variables('cnab_azure_state_fileshare'),'-','')]",
+		"endPointDNSName":                       "[concat(variables('endPointDNSPrefix'),'.',tolower(replace(parameters('location'),' ','')),'.azurecontainer.io')]",
+		"stateTableName":                        "installstate",
+		"aysncOpTableName":                      "asyncops",
 	}
 
 	template := Template{

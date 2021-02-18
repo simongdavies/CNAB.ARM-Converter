@@ -2,6 +2,7 @@ package template
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 // NewCnabArmDriverTemplate creates a new instance of Template for running a CNAB bundle using cnab-azure-driver
-func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[string]bundle.Output, simplify bool, timeout int) (*Template, error) {
+func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[string]bundle.Output, simplify bool, timeout int, debug bool) (*Template, error) {
 
 	duration, _ := time.ParseDuration(fmt.Sprintf("%dm", timeout))
 	executionTimeout := fmt.Sprintf("PT%s", strings.ToUpper(duration.String()))
@@ -133,6 +134,10 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 					{
 						Name:  "CNAB_AZURE_DELETE_OUTPUTS_FROM_FILESHARE",
 						Value: "[variables('cnab_delete_outputs_from_fileshare')]",
+					},
+					{
+						Name:  "CNAB_AZURE_DELETE_RESOURCES",
+						Value: "[variables('cnab_azure_delete_resources')]",
 					},
 					{
 						Name:        "AZURE_STORAGE_CONNECTION_STRING",
@@ -263,7 +268,15 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "Creates verbose output from cnab azure driver",
 			},
-			DefaultValue: common.ParameterDefaults["cnab_azure_verbose"],
+			DefaultValue: debug,
+		}
+
+		parameters["cnab_azure_delete_resources"] = Parameter{
+			Type: "bool",
+			Metadata: &Metadata{
+				Description: "Deletes resources created by the Azure CNAB Driver",
+			},
+			DefaultValue: !debug,
 		}
 
 		parameters["cnab_delete_outputs_from_fileshare"] = Parameter{
@@ -271,7 +284,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 			Metadata: &Metadata{
 				Description: "Deletes any bundle outputs from temporary location in fileshare",
 			},
-			DefaultValue: common.ParameterDefaults["cnab_delete_outputs_from_fileshare"],
+			DefaultValue: !debug,
 		}
 
 		parameters["msi_name"] = Parameter{
@@ -316,15 +329,15 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 	resource.Identity.UserAssignedIdentities = userIdentity
 
 	if simplify {
-		template.addSimpleVariables(bundleName, executionTimeout)
+		template.addSimpleVariables(bundleName, executionTimeout, debug)
 	} else {
-		template.addAdvancedVariables()
+		template.addAdvancedVariables(debug)
 	}
 
 	return &template, nil
 }
 
-func (template *Template) addAdvancedVariables() {
+func (template *Template) addAdvancedVariables(debug bool) {
 	variables := map[string]interface{}{
 		"cnab_resource_group":                   "[parameters('cnab_resource_group')]",
 		"cnab_azure_subscription_id":            "[parameters('cnab_azure_subscription_id')]",
@@ -334,6 +347,7 @@ func (template *Template) addAdvancedVariables() {
 		"cleanup":                               "[parameters('deployment_script_cleanup')]",
 		"cnab_azure_verbose":                    "[parameters('cnab_azure_verbose')]",
 		"cnab_delete_outputs_from_fileshare":    "[parameters('cnab_delete_outputs_from_fileshare')]",
+		"cnab_azure_delete_resources":           "[parameters('cnab_azure_delete_resources')]",
 		"msi_name":                              "[parameters('msi_name')]",
 		"roleAssignmentId":                      "[guid(concat(resourceGroup().id,parameters('msi_name'), 'contributor'))]",
 		"deploymentScriptResourceName":          "[parameters('deploymentScriptResourceName')]",
@@ -345,16 +359,21 @@ func (template *Template) addAdvancedVariables() {
 	template.Variables = variables
 }
 
-func (template *Template) addSimpleVariables(bundleName string, executionTimeout string) {
+func (template *Template) addSimpleVariables(bundleName string, executionTimeout string, debug bool) {
+	cleanup := "Always"
+	if debug {
+		cleanup = "OnExpiration"
+	}
 	variables := map[string]interface{}{
 		"cnab_resource_group":                   "[resourceGroup().name]",
 		"cnab_azure_subscription_id":            "[subscription().subscriptionId]",
 		"cnab_azure_state_fileshare":            fmt.Sprintf("[guid('%s')]", bundleName),
 		"cnab_azure_state_storage_account_name": "[concat('cnabstate',uniqueString(resourceGroup().id))]",
 		"location":                              "[resourceGroup().location]",
-		"cleanup":                               "Always",
-		"cnab_azure_verbose":                    "false",
-		"cnab_delete_outputs_from_fileshare":    "true",
+		"cleanup":                               cleanup,
+		"cnab_azure_verbose":                    strconv.FormatBool(debug),
+		"cnab_delete_outputs_from_fileshare":    strconv.FormatBool(!debug),
+		"cnab_azure_delete_resources":           strconv.FormatBool(!debug),
 		"msi_name":                              "cnabinstall",
 		"roleAssignmentId":                      "[guid(concat(resourceGroup().id,variables('msi_name'), 'contributor'))]",
 		"deploymentScriptResourceName":          fmt.Sprintf("[concat('cnab-',uniqueString(resourceGroup().id, '%s'))]", bundleName),
