@@ -145,7 +145,7 @@ func NewCnabArmDriverTemplate(bundleName string, bundleTag string, outputs map[s
 					},
 				},
 				Arguments:     "[format('{0} {1}',variables('porter_version'),parameters('cnab_installation_name'))]",
-				ScriptContent: createScript(bundleTag),
+				ScriptContent: createScript(bundleTag, debug),
 			},
 		},
 	}
@@ -385,7 +385,11 @@ func (template *Template) addSimpleVariables(bundleName string, executionTimeout
 	template.Variables = variables
 }
 
-func createScript(tag string) string {
+func createScript(tag string, debug bool) string {
+	porterDebug := ""
+	if debug {
+		porterDebug = "--debug"
+	}
 	//TODO allow version specification for azure driver and plugin
 	installsteps := []string{
 		"set -euxo pipefail",
@@ -425,7 +429,8 @@ func createScript(tag string) string {
 		"if [[  ! -z  ${!CNAB_CRED_@} ]];then CREDSFILE=$(mktemp);CREDS=\" --cred ${CREDSFILE}\";echo {\\\"Name\\\": \\\"${2}\\\" , > ${CREDSFILE};echo \\\"Credentials\\\":[ >> ${CREDSFILE}; for env_var in ${!CNAB_CRED_@};do NAME=${env_var#CNAB_CRED_};echo ${SUFFIX}>> ${CREDSFILE};if [[ ${NAME} = FILE_* ]];then NAME=${NAME#FILE_};fi;echo {\\\"Name\\\":\\\"$NAME\\\" , >> ${CREDSFILE};echo \\\"Source\\\": { >> ${CREDSFILE};if [[ ${env_var} = CNAB_CRED_FILE_* ]];then echo \\\"Path\\\": \\\"/tmp/${NAME}\\\" >> ${CREDSFILE};else echo \\\"Env\\\": \\\"${env_var}\\\" >> ${CREDSFILE};fi; echo }} >> ${CREDSFILE}; if [[ -z ${SUFFIX} ]];then SUFFIX=','; fi;  done;echo ]} >> ${CREDSFILE};fi",
 		//TODO update tags to reference
 		fmt.Sprintf("TAG=%s", tag),
-		"porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --reference ${TAG} -d azure",
+		fmt.Sprintf("PORTER_DEBUG=%s", porterDebug),
+		"porter bundle ${ACTION} \"${2}\" ${PARAMS} ${CREDS} --reference ${TAG} -d azure ${PORTER_DEBUG}",
 		//TODO deal with sensitve outputs
 		"OUTPUTS=$(porter inst outputs list -i \"${2}\" -o json)",
 		"echo OUTPUTS: ${OUTPUTS}",
