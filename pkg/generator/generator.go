@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"get.porter.sh/porter/pkg/cnab/extensions"
 	"github.com/cnabio/cnab-go/bundle"
 	"github.com/cnabio/cnab-go/bundle/definition"
 	"github.com/containerd/containerd/log"
@@ -134,7 +135,7 @@ func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle
 			setAKSParameters(generatedTemplate, bundle)
 		} else if cnabParam, ok := isCnabParam(parameterKey); options.Simplify && ok {
 			paramEnvVar.Value = fmt.Sprintf("[variables('%s')]", cnabParam)
-		} else if parameter.AppliesTo("install") || parameter.AppliesTo("upgrade") {
+		} else if parameter.AppliesTo("install") || (parameter.AppliesTo("upgrade") && !isParamFromOutputOnly(parameterKey, parameter, bundle)) {
 			templateParameter, isSensitive, err := genParameter(parameter, definition)
 			if err != nil {
 				return nil, nil, err
@@ -355,7 +356,7 @@ func GenerateCustomRP(options common.BundleDetails) (*template.Template, *bundle
 
 		for _, parameterKey := range parameterKeys {
 			parameter := bundle.Parameters[parameterKey]
-			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) && (customTypeInfo == nil || (customTypeInfo != nil && customTypeInfo.Id != parameterKey)) {
+			if _, isCnabParam := isCnabParam(parameterKey); !isCnabParam && !isParamFromOutputOnly(parameterKey, parameter, bundle) && (parameter.AppliesTo("install") || parameter.AppliesTo("upgrade")) && (customTypeInfo == nil || (customTypeInfo != nil && customTypeInfo.Id != parameterKey)) {
 
 				definition := bundle.Definitions[parameter.Definition]
 				templateParameter, _, err := genParameter(parameter, definition)
@@ -515,6 +516,23 @@ func setAKSParameters(generatedTemplate *template.Template, bundle *bundle.Bundl
 			Description: fmt.Sprintf("The name of the AKS Cluster to deploy bundle %s to", bundle.Name),
 		},
 	}
+}
+
+// Ignore upgrade parameters that are sourced from outputs
+func isParamFromOutputOnly(parameterKey string, parameter bundle.Parameter, bundle *bundle.Bundle) bool {
+	if parameter.AppliesTo("upgrade") && extensions.HasParameterSources(*bundle) {
+
+		if psExtension, err := extensions.GetSupportedExtension("io.cnab.parameter-sources"); err == nil {
+			data, err := psExtension.Reader(*bundle)
+			if err == nil {
+				parameterSources := data.(extensions.ParameterSources)
+				_, exists := parameterSources[parameterKey]
+				return exists
+			}
+		}
+	}
+
+	return false
 }
 
 func isCnabParam(parameterKey string) (string, bool) {

@@ -26,7 +26,7 @@ bundle.json
 !**/testdata/bundle.json
 **/testdata/generated/**
 __debug_bin
-CreateUIDefinition.json
+**/CreateUIDefinition.json
 
 .vscode
 local.settings.json
