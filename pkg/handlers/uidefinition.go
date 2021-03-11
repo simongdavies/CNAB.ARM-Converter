@@ -87,9 +87,14 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 
 func uiRedirectHandler(w http.ResponseWriter, r *http.Request) {
 	originalRequestUri := r.Context().Value(common.RequestURIContext).(string)
+	bundle := r.Context().Value(models.BundleContext).(*models.Bundle)
 	templateUri := strings.Replace(originalRequestUri, models.UIRedirectPath, models.TemplateGeneratorPath, 1)
 	uiURI := strings.Replace(originalRequestUri, models.UIRedirectPath, models.UIDefPath, 1)
-	redirectURI := fmt.Sprintf("https://portal.azure.com/#create/Microsoft.Template/uri/%s/createUIDefinitionUri/%s", url.PathEscape(templateUri), url.PathEscape(uiURI))
+	portalURL := "portal.azure.com"
+	if bundle.Dogfood {
+		portalURL = "df.onecloud.azure-test.net"
+	}
+	redirectURI := fmt.Sprintf("https://%s/#create/Microsoft.Template/uri/%s/createUIDefinitionUri/%s", portalURL, url.PathEscape(templateUri), url.PathEscape(uiURI))
 	log.Infof("Redirecting %s to %s", originalRequestUri, redirectURI)
 	http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
 }

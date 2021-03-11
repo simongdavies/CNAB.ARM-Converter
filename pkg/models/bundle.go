@@ -41,6 +41,7 @@ type Bundle struct {
 	IncludeCustomResource bool
 	CustomRPTemplate      bool
 	Debug                 bool
+	Dogfood               bool
 }
 
 func BundleCtx(next http.Handler) http.Handler {
@@ -83,6 +84,7 @@ func BundleCtx(next http.Handler) http.Handler {
 			ReplaceKubeconfig:     getBoolQueryParam(r, "useaks"),
 			IncludeCustomResource: getBoolQueryParam(r, "includeresource"),
 			Debug:                 getBoolQueryParam(r, "debug"),
+			Dogfood:               getBoolQueryParam(r, "dogfood"),
 			CustomRPTemplate:      customRpTemplate,
 		}
 
