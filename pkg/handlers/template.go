@@ -104,8 +104,13 @@ func nestedDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	originalRequestUri := r.Context().Value(common.RequestURIContext).(string)
+	bundle := r.Context().Value(models.BundleContext).(*models.Bundle)
 	templateUri := strings.Replace(originalRequestUri, models.RedirectPath, models.TemplateGeneratorPath, 1)
-	redirectURI := fmt.Sprintf("%s/%s", "https://portal.azure.com/#create/Microsoft.Template/uri", url.PathEscape(templateUri))
+	portalURL := "portal.azure.com"
+	if bundle.Dogfood {
+		portalURL = "df.onecloud.azure-test.net"
+	}
+	redirectURI := fmt.Sprintf("https://%s/#create/Microsoft.Template/uri/%s", portalURL, url.PathEscape(templateUri))
 	log.Infof("Redirecting %s to %s", originalRequestUri, redirectURI)
 	http.Redirect(w, r, redirectURI, http.StatusTemporaryRedirect)
 }
