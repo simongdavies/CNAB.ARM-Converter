@@ -97,6 +97,27 @@ func GenerateNestedDeployment(options GenerateNestedDeploymentOptions) error {
 	return common.WriteOutput(options.OutputWriter, generatedDeployment, options.Indent)
 }
 
+// GenerateArcTemplate generates an Arc template from bundle metadata
+func GenerateArcTemplate(options common.BundleDetails) (*template.Template, *bundle.Bundle, error) {
+
+	bundle, bundleTag, err := common.GetBundleDetails(options)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	generatedTemplate, err := template.NewCnabArcTemplate(
+		bundle.Name,
+		bundleTag)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO: add parameters and credentials
+
+	return generatedTemplate, bundle, nil
+}
+
 // GenerateTemplate generates ARM template from bundle metadata
 func GenerateTemplate(options common.BundleDetails) (*template.Template, *bundle.Bundle, error) {
 

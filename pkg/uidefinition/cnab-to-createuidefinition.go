@@ -20,6 +20,8 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		locationToolTip = "This is the location for the application and all its resources"
 	}
 
+	//TODO: set premission requests correctly for ARC template
+
 	UIDef := CreateUIDefinition{
 		Schema:  "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
 		Handler: "Microsoft.Azure.CreateUIDef",
@@ -137,6 +139,29 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 		outputs[common.KubeConfigParameterName] = "[first(steps('basics').aksKubeConfig.kubeconfigs).value]"
 	}
+
+	//TODO: Handle CustomRP and CustomLocation
+
+	if _, customLocation := generatedTemplate.Parameters[common.CustomLocationResourceParameterName]; customLocation && !customRPUI {
+		elementsMap["basics"] = append(elementsMap["basics"], Element{
+			Name:         "customLocationSelector",
+			Type:         "Microsoft.Solutions.ResourceSelector",
+			Label:        "Select Custom Location",
+			ResourceType: "Microsoft.Extendedlocation/Customlocations",
+			Visible:      true,
+			Tooltip:      fmt.Sprintf("Select the Custom Location to deploy %s to", bundleName),
+			Options: ResourceSelectorOptions{
+				Filter: ResourceSelectorFilter{
+					Subscription: OnBasics.String(),
+					Location:     All.String(),
+				},
+			},
+		})
+
+		outputs[common.CustomLocationRGParameterName] = "[last(take(split(steps('basics').customLocationSelector.id,'/'),5))]"
+		outputs[common.CustomLocationResourceParameterName] = "[steps('basics').customLocationSelector.name]"
+	}
+
 	var settings CustomSettings
 	if customSettings := custom["com.azure.creatuidef"]; customSettings != nil {
 		jsonData, err := json.Marshal(custom["com.azure.creatuidef"])
@@ -212,7 +237,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 	for name, val := range generatedTemplate.Parameters {
 		// Skip any parameters with custom ui , location or kubeconfig when processing CustomRP UI
-		if hasCustomSettings(settings, name) || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName || name == common.LocationParameterName || (name == common.KubeConfigParameterName && customRPUI) {
+		if hasCustomSettings(settings, name) || name == common.CustomLocationRGParameterName || name == common.CustomLocationResourceParameterName || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName || name == common.LocationParameterName || (name == common.KubeConfigParameterName && customRPUI) {
 			continue
 		}
 

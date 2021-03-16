@@ -69,7 +69,11 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 	if options.CustomRPTemplate {
 		generatedTemplate, bundledef, err = generator.GenerateCustomRP(options)
 	} else {
-		generatedTemplate, bundledef, err = generator.GenerateTemplate(options)
+		if bundle.ArcTemplate {
+			generatedTemplate, bundledef, err = generator.GenerateArcTemplate(options)
+		} else {
+			generatedTemplate, bundledef, err = generator.GenerateTemplate(options)
+		}
 	}
 
 	if err != nil {
@@ -88,7 +92,11 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 func uiRedirectHandler(w http.ResponseWriter, r *http.Request) {
 	originalRequestUri := r.Context().Value(common.RequestURIContext).(string)
 	bundle := r.Context().Value(models.BundleContext).(*models.Bundle)
-	templateUri := strings.Replace(originalRequestUri, models.UIRedirectPath, models.TemplateGeneratorPath, 1)
+	templateGeneratorPath := models.TemplateGeneratorPath
+	if bundle.ArcTemplate {
+		templateGeneratorPath = models.ArcTemplatePath
+	}
+	templateUri := strings.Replace(originalRequestUri, models.UIRedirectPath, templateGeneratorPath, 1)
 	uiURI := strings.Replace(originalRequestUri, models.UIRedirectPath, models.UIDefPath, 1)
 	portalURL := "portal.azure.com"
 	if bundle.Dogfood {

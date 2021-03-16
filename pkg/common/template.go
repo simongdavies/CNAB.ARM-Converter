@@ -73,6 +73,8 @@ var ParameterDefaults = map[string]interface{}{
 
 const AKSResourceParameterName = "aksClusterName"
 const AKSResourceGroupParameterName = "aksClusterResourceGroupName"
+const CustomLocationResourceParameterName = "customLocationResource"
+const CustomLocationRGParameterName = "customLocationRG"
 const KubeConfigParameterName = "kubeconfig"
 const LocationParameterName = "location"
 const DebugParameterName = "debug"

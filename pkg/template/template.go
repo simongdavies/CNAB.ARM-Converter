@@ -188,17 +188,24 @@ type EnvironmentVariable struct {
 
 // Resource defines a resource in the generated template
 type Resource struct {
-	Condition  string      `json:"condition,omitempty"`
-	Type       string      `json:"type"`
-	Name       string      `json:"name"`
-	APIVersion string      `json:"apiVersion"`
-	Location   string      `json:"location"`
-	Sku        *Sku        `json:"sku,omitempty"`
-	Kind       string      `json:"kind,omitempty"`
-	ManagedBy  string      `json:"managedBy,omitempty"`
-	DependsOn  []string    `json:"dependsOn,omitempty"`
-	Identity   *Identity   `json:"identity,omitempty"`
-	Properties interface{} `json:"properties,omitempty"`
+	Condition        string                      `json:"condition,omitempty"`
+	Type             string                      `json:"type"`
+	Name             string                      `json:"name"`
+	APIVersion       string                      `json:"apiVersion"`
+	Location         string                      `json:"location"`
+	ExtendedLocation *ExtendedLocationProperties `json:"extendedLocation"`
+	Sku              *Sku                        `json:"sku,omitempty"`
+	Kind             string                      `json:"kind,omitempty"`
+	ManagedBy        string                      `json:"managedBy,omitempty"`
+	DependsOn        []string                    `json:"dependsOn,omitempty"`
+	Identity         *Identity                   `json:"identity,omitempty"`
+	Properties       interface{}                 `json:"properties,omitempty"`
+}
+
+// ExtendedLocationProperties define the properties for an Extended Location
+type ExtendedLocationProperties struct {
+	Type string `json:"type,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // CustomProviderProperties define the properties for a Custom RP
@@ -275,6 +282,12 @@ type RoleAssignment struct {
 	PrincipalId      string `json:"principalId"`
 	Scope            string `json:"scope"`
 	PrincipalType    string `json:"principalType"`
+}
+
+// RoleAssignment defines a role assignment in the generated template
+type CNABInstallation struct {
+	Reference string `json:"reference"`
+	Action    string `json:"action"`
 }
 
 // Output defines an output in the generated template

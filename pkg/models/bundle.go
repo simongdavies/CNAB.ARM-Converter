@@ -28,6 +28,7 @@ const (
 	ManagedAppPath              string           = "/api/managedapp"
 	SolutionTemplatePath        string           = "/api/solutiontemplate"
 	ManagedAppDefinitionPath    string           = "/api/appdefinition"
+	ArcTemplatePath             string           = "/api/arc"
 	BundleContext               BundleContextKey = "bundle"
 )
 
@@ -40,6 +41,7 @@ type Bundle struct {
 	ReplaceKubeconfig     bool
 	IncludeCustomResource bool
 	CustomRPTemplate      bool
+	ArcTemplate           bool
 	Debug                 bool
 	Dogfood               bool
 }
@@ -62,6 +64,7 @@ func BundleCtx(next http.Handler) http.Handler {
 		imageName = strings.TrimPrefix(imageName, ManagedAppPath)
 		imageName = strings.TrimPrefix(imageName, SolutionTemplatePath)
 		imageName = strings.TrimPrefix(imageName, ManagedAppDefinitionPath)
+		imageName = strings.TrimPrefix(imageName, ArcTemplatePath)
 		imageName = strings.TrimPrefix(imageName, "/")
 
 		if len(imageName) == 0 {
@@ -86,6 +89,7 @@ func BundleCtx(next http.Handler) http.Handler {
 			Debug:                 getBoolQueryParam(r, "debug"),
 			Dogfood:               getBoolQueryParam(r, "dogfood"),
 			CustomRPTemplate:      customRpTemplate,
+			ArcTemplate:           getBoolQueryParam(r, "arc"),
 		}
 
 		ctx := context.WithValue(r.Context(), BundleContext, &bundleContext)
