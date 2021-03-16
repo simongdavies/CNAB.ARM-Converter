@@ -13,7 +13,7 @@ func NewCnabArcTemplate(bundleName string, bundleTag string) (*Template, error) 
 			Location:   "westUS",
 			ExtendedLocation: &ExtendedLocationProperties{
 				Type: "customLocation",
-				Name: "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',parameters('customLocationRG'),'/providers/Microsoft.CNAB/installations/',parameters('customLocationResource'))]",
+				Name: "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',parameters('customLocationRG'),'/providers/Microsoft.ExtendedLocation/customLocations/',parameters('customLocationResource'))]",
 			},
 			Properties: CNABInstallation{
 				Reference: bundleTag,
