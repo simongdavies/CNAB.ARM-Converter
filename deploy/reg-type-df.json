@@ -1,0 +1,185 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "ProviderName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the resource provider (e.g. Microsoft.Compute)."
+            },
+            "defaultValue": "cnab.sqlserver"
+        },
+        "bundleName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the bundle"
+            },
+            "defaultValue": "cnabquickstarts/"
+        },  
+        "ResourceTypeName": {
+            "type": "string",
+            "metadata": {
+                "description": "The resource type for the resource provider (e.g. virtualMachines)."
+            },
+            "defaultValue": "service"
+        },
+        "Regionality": {
+            "type": "string",
+            "defaultValue": "Regional",
+            "allowedValues": [
+                "Regional",
+                "Global"
+            ],
+            "metadata": {
+                "description": "The resource regionality.",
+                "group": "Resource Storage"
+            }
+        },
+        "RoutingType": {
+            "type": "string",
+            "defaultValue": "Default",
+            "metadata": {
+                "description": "The resource routing type.",
+                "group": "Resource Storage"
+            }
+        },
+        "Regions": {
+            "defaultValue":["WestUS2"],
+            "type": "array"
+        },
+      
+        "ExtensionCategories": {
+            "type": "array",
+            "defaultValue":[
+					    "ResourceCreationBegin",
+					    "ResourceDeletionBegin"
+            ]
+        },
+        "ApiVersion": {
+            "type": "string",
+            "defaultValue": "2020-11-10-preview",
+            "metadata": {
+                "description": "The API Version",
+                "group": "Swagger Specification"
+            }
+        },
+        "SwaggerFolderURI": {
+            "type": "string",
+            "metadata": {
+                "description": "The Swagger folder URI",
+                "group": "Swagger Specification"
+            },
+            "defaultValue":"https://github.com/Azure/azure-rest-api-specs-pr/tree/RPSaaSDev/specification/cnab/resource-manager/cnab.sqlserver/"
+        }
+    },
+    "variables": {
+      "RegionToGeography": {
+            "WestUS2": "UnitedStates"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ProviderHub/providerRegistrations/resourceTypeRegistrations",
+            "apiVersion": "2019-02-01-preview",
+            "name": "[concat(parameters('ProviderName'), '/Locations')]",
+            "properties": {
+                "routingType": "ProxyOnly",
+                "regionality": "Global",
+                "endpoints": [
+                    {
+                        "apiVersions": [
+                            "[parameters('ApiVersion')]"
+                        ],
+                        "locations": [
+                            ""
+                        ]
+                    }
+                ],
+                "swaggerSpecifications": [
+                    {
+                        "apiVersions": [
+                            "[parameters('ApiVersion')]"
+                        ],
+                        "swaggerSpecFolderUri": "[parameters('SwaggerFolderURI')]"
+                    }
+                ]
+            },
+            "resources": [
+                {
+                    "type": "resourceTypeRegistrations",
+                    "apiVersion": "2019-02-01-preview",
+                    "name": "OperationStatuses",
+                    "dependsOn": [
+                        "locations"
+                    ],
+                    "properties": {
+                        "routingType": "ProxyOnly, LocationBased, Tenant",
+                        "regionality": "Regional",
+                        "allowedUnauthorizedActions": [
+                            "[concat(parameters('ProviderName'), '/Locations/OperationStatuses/read')]",
+                            "[concat(parameters('ProviderName'), '/Locations/OperationStatuses/write')]"
+                        ],
+                        "endpoints": [
+                            {
+                                "apiVersions": [
+                                    "[parameters('ApiVersion')]"
+                                ],
+                                "locations": "[parameters('Regions')]"
+                            }
+                        ],
+                        "swaggerSpecifications": [
+                            {
+                                "apiVersions": [
+                                    "[parameters('ApiVersion')]"
+                                ],
+                                "swaggerSpecFolderUri": "[parameters('SwaggerFolderURI')]"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.ProviderHub/providerRegistrations/resourceTypeRegistrations",
+            "apiVersion": "2019-02-01-preview",
+            "dependsOn": [
+                "[resourceId('Microsoft.ProviderHub/providerRegistrations/resourceTypeRegistrations/resourceTypeRegistrations', parameters('ProviderName'), 'Locations', 'OperationStatuses')]"
+            ],
+            "name": "[concat(parameters('ProviderName'), '/', parameters('ResourceTypeName'))]",
+            "properties": {
+                "routingType": "[parameters('RoutingType')]",
+                "regionality": "[parameters('Regionality')]",
+                "enableAsyncOperation": true,
+                "copy": [
+                    {
+                        "name": "endpoints",
+                        "count": "[length(parameters('Regions'))]",
+                        "input": {
+                            "apiVersions": [
+                                "[parameters('ApiVersion')]"
+                            ],
+                            "locations": [
+                                "[parameters('Regions')[copyIndex('endpoints')]]"
+                            ],
+                            "extensions": [
+                                {
+                                    "endpointUri": "[concat('https://k8bridge.', variables('RegionToGeography')[parameters('Regions')[copyIndex('endpoints')]], '.dogfood.fusion.azure.com/cnab/',parameters('bundleName'))]",
+                                    "extensionCategories": "[parameters('ExtensionCategories')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "swaggerSpecifications": [
+                    {
+                        "apiVersions": [
+                            "[parameters('ApiVersion')]"
+                        ],
+                        "swaggerSpecFolderUri": "[parameters('SwaggerFolderURI')]"
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": {}
+}
