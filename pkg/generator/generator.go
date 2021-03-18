@@ -492,7 +492,7 @@ func GenerateFiles(options common.BundleDetails) error {
 	}
 
 	if options.GenerateUI {
-		ui, err := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundle.Custom, options.CustomRPTemplate, options.IncludeCustomResource)
+		ui, err := uidefinition.NewCreateUIDefinition(bundle.Name, bundle.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundle.Custom, options.CustomRPTemplate, options.IncludeCustomResource, options.ArcTemplate)
 		if err != nil {
 			return fmt.Errorf("Failed to gernerate UI definition, %w", err)
 		}

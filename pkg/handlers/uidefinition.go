@@ -79,7 +79,7 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate template for image: %s error: %v", bundle.Ref, err)))
 	}
-	ui, err := uidefinition.NewCreateUIDefinition(bundledef.Name, bundledef.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundledef.Custom, bundle.CustomRPTemplate, bundle.IncludeCustomResource)
+	ui, err := uidefinition.NewCreateUIDefinition(bundledef.Name, bundledef.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundledef.Custom, bundle.CustomRPTemplate, bundle.IncludeCustomResource, bundle.ArcTemplate)
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInvalidRequestFromError(fmt.Errorf("Failed to generate UI Def for image: %s error: %v", bundle.Ref, err)))
 	}

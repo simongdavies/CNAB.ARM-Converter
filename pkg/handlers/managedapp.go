@@ -88,7 +88,7 @@ func managedAppHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ui, err := uidefinition.NewCreateUIDefinition(bundledef.Name, bundledef.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundledef.Custom, options.CustomRPTemplate, options.IncludeCustomResource)
+	ui, err := uidefinition.NewCreateUIDefinition(bundledef.Name, bundledef.Description, generatedTemplate, options.Simplify, options.ReplaceKubeconfig, bundledef.Custom, options.CustomRPTemplate, options.IncludeCustomResource, options.ArcTemplate)
 	if err != nil {
 		_ = render.Render(w, r, helpers.ErrorInternalServerErrorFromError(fmt.Errorf("Failed to generate UI definition, %w", err)))
 		return

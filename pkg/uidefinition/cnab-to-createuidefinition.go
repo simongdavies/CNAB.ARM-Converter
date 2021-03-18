@@ -11,7 +11,11 @@ import (
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 )
 
-func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}, customRPUI bool, includeResource bool) (*CreateUIDefinition, error) {
+func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}, customRPUI bool, includeResource bool, isARCResource bool) (*CreateUIDefinition, error) {
+
+	if isARCResource {
+		return NewArcCreateUIDefinition(bundleName, bundleDescription, generatedTemplate, simplyfy, custom, customRPUI, includeResource)
+	}
 
 	locationLabel := "CNAB Action Location"
 	locationToolTip := "This is the location where the deployment to run the CNAB action will run"
@@ -19,8 +23,6 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		locationLabel = "Application Location"
 		locationToolTip = "This is the location for the application and all its resources"
 	}
-
-	//TODO: set premission requests correctly for ARC template
 
 	UIDef := CreateUIDefinition{
 		Schema:  "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
@@ -92,7 +94,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 	elementsMap["basics"] = []Element{}
 	elementsMap["Additional"] = []Element{}
 
-	if _, aks := generatedTemplate.Parameters[common.AKSResourceParameterName]; aks && useAKS && !customRPUI {
+	if hasAKSParams(*generatedTemplate) && useAKS && !customRPUI {
 		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "aksSelector",
 			Type:         "Microsoft.Solutions.ResourceSelector",
@@ -112,7 +114,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		outputs[common.AKSResourceParameterName] = "[steps('basics').aksSelector.name]"
 	}
 
-	if _, aks := generatedTemplate.Parameters[common.KubeConfigParameterName]; aks && customRPUI && includeResource {
+	if _, hasKubeConfig := generatedTemplate.Parameters[common.KubeConfigParameterName]; hasKubeConfig && customRPUI && includeResource {
 		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "aksSelector",
 			Type:         "Microsoft.Solutions.ResourceSelector",
@@ -140,9 +142,75 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		outputs[common.KubeConfigParameterName] = "[first(steps('basics').aksKubeConfig.kubeconfigs).value]"
 	}
 
+	return processParameters(generatedTemplate, custom, &UIDef, outputs, elementsMap, customRPUI)
+}
+
+func hasAKSParams(template template.Template) bool {
+	_, aksResource := template.Parameters[common.AKSResourceParameterName]
+	_, aksResourceGroup := template.Parameters[common.AKSResourceGroupParameterName]
+	return aksResource && aksResourceGroup
+}
+
+func hasARCParams(template template.Template) bool {
+	_, customResource := template.Parameters[common.CustomLocationResourceParameterName]
+	_, customResourceGroup := template.Parameters[common.CustomLocationRGParameterName]
+	return customResource && customResourceGroup
+}
+
+func NewArcCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, custom map[string]interface{}, customRPUI bool, includeResource bool) (*CreateUIDefinition, error) {
+
+	locationLabel := "CNAB RP Location"
+	locationToolTip := "This is the location where the CNAB RP will be located"
+	if customRPUI {
+		locationLabel = "Application Location"
+		locationToolTip = "This is the location for the application and all its resources"
+	}
+
+	//TODO: set permission requests correctly for ARC template
+
+	UIDef := CreateUIDefinition{
+		Schema:  "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+		Handler: "Microsoft.Azure.CreateUIDef",
+		Version: "0.1.2-preview",
+		Parameters: Parameters{
+			Config: Config{
+				IsWizard: false,
+				Basics: BasicsConfig{
+					Description: bundleDescription,
+					ResourceGroup: ResourceGroup{
+						Constraints: ResourceConstraints{
+							Validations: []ResourceValidation{
+								{
+									Permission: "Microsoft.CNAB/installations/write",
+									Message:    "Permission to create CNAB RP is needed in resource group ",
+								},
+							},
+						},
+						AllowExisting: true,
+					},
+					Location: Location{
+						Label:   locationLabel,
+						Tooltip: locationToolTip,
+						ResourceTypes: []string{
+							"Microsoft.CNAB/installations",
+						},
+						Visible: true,
+					},
+				},
+			},
+			Basics: []Element{},
+			Steps:  make([]Step, 0),
+		},
+	}
+	outputs := map[string]string{}
+
+	elementsMap := map[string][]Element{}
+	elementsMap["basics"] = []Element{}
+	elementsMap["Additional"] = []Element{}
+
 	//TODO: Handle CustomRP and CustomLocation
 
-	if _, customLocation := generatedTemplate.Parameters[common.CustomLocationResourceParameterName]; customLocation && !customRPUI {
+	if hasARCParams(*generatedTemplate) && !customRPUI {
 		elementsMap["basics"] = append(elementsMap["basics"], Element{
 			Name:         "customLocationSelector",
 			Type:         "Microsoft.Solutions.ResourceSelector",
@@ -161,6 +229,11 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		outputs[common.CustomLocationRGParameterName] = "[last(take(split(steps('basics').customLocationSelector.id,'/'),5))]"
 		outputs[common.CustomLocationResourceParameterName] = "[steps('basics').customLocationSelector.name]"
 	}
+
+	return processParameters(generatedTemplate, custom, &UIDef, outputs, elementsMap, customRPUI)
+}
+
+func processParameters(generatedTemplate *template.Template, custom map[string]interface{}, UIDef *CreateUIDefinition, outputs map[string]string, elementsMap map[string][]Element, customRPUI bool) (*CreateUIDefinition, error) {
 
 	var settings CustomSettings
 	if customSettings := custom["com.azure.creatuidef"]; customSettings != nil {
@@ -237,7 +310,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 
 	for name, val := range generatedTemplate.Parameters {
 		// Skip any parameters with custom ui , location or kubeconfig when processing CustomRP UI
-		if hasCustomSettings(settings, name) || name == common.CustomLocationRGParameterName || name == common.CustomLocationResourceParameterName || name == common.AKSResourceGroupParameterName || name == common.AKSResourceParameterName || name == common.LocationParameterName || (name == common.KubeConfigParameterName && customRPUI) {
+		if shouldSkipParameter(settings, name, customRPUI) {
 			continue
 		}
 
@@ -316,7 +389,17 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 	}
 
 	UIDef.Parameters.Outputs = outputs
-	return &UIDef, nil
+	return UIDef, nil
+}
+
+func shouldSkipParameter(settings CustomSettings, name string, customRPUI bool) bool {
+	return hasCustomSettings(settings, name) ||
+		name == common.CustomLocationRGParameterName ||
+		name == common.CustomLocationResourceParameterName ||
+		name == common.AKSResourceGroupParameterName ||
+		name == common.AKSResourceParameterName ||
+		name == common.LocationParameterName ||
+		(name == common.KubeConfigParameterName && customRPUI)
 }
 
 func hasCustomSettings(settings CustomSettings, name string) bool {

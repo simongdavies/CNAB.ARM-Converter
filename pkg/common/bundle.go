@@ -28,6 +28,7 @@ type Options struct {
 	GenerateUI            bool
 	IncludeCustomResource bool
 	CustomRPTemplate      bool
+	ArcTemplate           bool
 	Debug                 bool
 	Timeout               int
 	UIWriter              io.Writer
