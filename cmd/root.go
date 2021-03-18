@@ -22,6 +22,7 @@ var simplify bool
 var customUI bool
 var customRP bool
 var arcTemplate bool
+var dogfood bool
 var includeCustomResource bool
 var replaceKubeconfig bool
 var timeout int
@@ -160,6 +161,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&customUI, "customuidef", "c", false, "generates a custom createUIDefinition file called createUIdefinition.json in the same directory as the template")
 	rootCmd.Flags().BoolVarP(&simplify, "simplify", "s", false, "specifies if the ARM template should be simplified, exposing less parameters and inferring default values")
 	rootCmd.Flags().BoolVarP(&arcTemplate, "arctemplate", "a", false, "generates a template to use a bundle via ARC")
+	rootCmd.Flags().BoolVarP(&dogfood, "dogfood", "d", false, "generates dogfood specific options")
 	rootCmd.Flags().BoolVarP(&customRP, "customrp", "p", false, "generates a template to create a custom RP implemenation")
 	rootCmd.Flags().BoolVarP(&includeCustomResource, "includeresource", "n", false, "causes the customRP template to include an instance of the type in addition to the resource and type definition")
 	rootCmd.Flags().BoolVarP(&replaceKubeconfig, "replace", "r", false, "specifies if the ARM template generated should replace Kubeconfig Parameters with AKS references")

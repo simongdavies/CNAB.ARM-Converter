@@ -11,10 +11,10 @@ import (
 	"github.com/simongdavies/CNAB.ARM-Converter/pkg/template"
 )
 
-func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}, customRPUI bool, includeResource bool, isARCResource bool) (*CreateUIDefinition, error) {
+func NewCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, useAKS bool, custom map[string]interface{}, customRPUI bool, includeResource bool, isARCResource bool, isDogfood bool) (*CreateUIDefinition, error) {
 
 	if isARCResource {
-		return NewArcCreateUIDefinition(bundleName, bundleDescription, generatedTemplate, simplyfy, custom, customRPUI, includeResource)
+		return NewArcCreateUIDefinition(bundleName, bundleDescription, generatedTemplate, simplyfy, custom, customRPUI, includeResource, isDogfood)
 	}
 
 	locationLabel := "CNAB Action Location"
@@ -30,7 +30,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 		Version: "0.1.2-preview",
 		Parameters: Parameters{
 			Config: Config{
-				IsWizard: false,
+				IsWizard: true,
 				Basics: BasicsConfig{
 					Description: bundleDescription,
 					ResourceGroup: &ResourceGroup{
@@ -157,7 +157,7 @@ func hasARCParams(template template.Template) bool {
 	return customResource && customResourceGroup
 }
 
-func NewArcCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, custom map[string]interface{}, customRPUI bool, includeResource bool) (*CreateUIDefinition, error) {
+func NewArcCreateUIDefinition(bundleName string, bundleDescription string, generatedTemplate *template.Template, simplyfy bool, custom map[string]interface{}, customRPUI bool, includeResource bool, isDogfood bool) (*CreateUIDefinition, error) {
 
 	locationLabel := "CNAB RP Location"
 	locationToolTip := "This is the location where the CNAB RP will be located"
@@ -174,7 +174,7 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 		Version: "0.1.2-preview",
 		Parameters: Parameters{
 			Config: Config{
-				IsWizard: false,
+				IsWizard: true,
 				Basics: BasicsConfig{
 					Description: bundleDescription,
 					Subscription: &Subscription{
@@ -199,6 +199,7 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 						ResourceTypes: []string{
 							"Microsoft.CNAB/installations",
 						},
+
 						Visible: true,
 					},
 				},
@@ -234,6 +235,10 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 		outputs[common.CustomLocationRGParameterName] = "[last(take(split(steps('basics').customLocationSelector.id,'/'),5))]"
 		outputs[common.CustomLocationResourceParameterName] = "[steps('basics').customLocationSelector.name]"
 	}
+
+	// ARC in Dogfood requires location to be West US
+
+	UIDef.Parameters.Config.Basics.Location.AllowedValues = []string{"westus"}
 
 	return processParameters(generatedTemplate, custom, &UIDef, outputs, elementsMap, customRPUI)
 }

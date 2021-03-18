@@ -33,6 +33,7 @@ type Options struct {
 	Timeout               int
 	UIWriter              io.Writer
 	BundlePullOptions     *porter.BundlePullOptions
+	Dogfood               bool
 }
 
 // BundleDetails is defines the bundle and bundle options to be used

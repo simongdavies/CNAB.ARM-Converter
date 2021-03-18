@@ -111,6 +111,7 @@ type Location struct {
 	Tooltip       string   `json:"toolTip,omitempty"`
 	ResourceTypes []string `json:"resourceTypes,omitempty"`
 	Visible       bool     `json:"visible,omitempty"`
+	AllowedValues []string `json:"allowedValues,omitempty"`
 }
 
 type InfoboxOptions struct {
