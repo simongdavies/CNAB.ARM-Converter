@@ -33,7 +33,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 				IsWizard: false,
 				Basics: BasicsConfig{
 					Description: bundleDescription,
-					ResourceGroup: ResourceGroup{
+					ResourceGroup: &ResourceGroup{
 						Constraints: ResourceConstraints{
 							Validations: []ResourceValidation{
 								{
@@ -68,7 +68,7 @@ func NewCreateUIDefinition(bundleName string, bundleDescription string, generate
 						},
 						AllowExisting: true,
 					},
-					Location: Location{
+					Location: &Location{
 						Label:   locationLabel,
 						Tooltip: locationToolTip,
 						ResourceTypes: []string{
@@ -177,7 +177,12 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 				IsWizard: false,
 				Basics: BasicsConfig{
 					Description: bundleDescription,
-					ResourceGroup: ResourceGroup{
+					Subscription: &Subscription{
+						ResourceProviders: []string{
+							"Microsoft.CNAB",
+						},
+					},
+					ResourceGroup: &ResourceGroup{
 						Constraints: ResourceConstraints{
 							Validations: []ResourceValidation{
 								{
@@ -188,7 +193,7 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 						},
 						AllowExisting: true,
 					},
-					Location: Location{
+					Location: &Location{
 						Label:   locationLabel,
 						Tooltip: locationToolTip,
 						ResourceTypes: []string{

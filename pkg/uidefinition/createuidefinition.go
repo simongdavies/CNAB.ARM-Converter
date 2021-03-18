@@ -80,9 +80,16 @@ type Config struct {
 }
 
 type BasicsConfig struct {
-	Description   string        `json:"description,omitempty"`
-	ResourceGroup ResourceGroup `json:"resourceGroup,omitempty"`
-	Location      Location      `json:"location,omitempty"`
+	Description   string         `json:"description,omitempty"`
+	Subscription  *Subscription  `json:"subscription,omitempty"`
+	ResourceGroup *ResourceGroup `json:"resourceGroup,omitempty"`
+	Location      *Location      `json:"location,omitempty"`
+}
+
+type Subscription struct {
+	Description       string              `json:"description,omitempty"`
+	Constraints       ResourceConstraints `json:"constraints,omitempty"`
+	ResourceProviders []string            `json:"resourceProviders,omitempty"`
 }
 
 type ResourceGroup struct {
