@@ -3,7 +3,7 @@ package template
 // NewCnabarcTemplate creates a new instance of Template for running a CNAB bundle via the porter operator and arc
 func NewCnabArcTemplate(bundleName string, bundleTag string) (*Template, error) {
 
-	// TODO: does not handle parameters or credentials yet
+	// TODO: does not handle credentials yet
 
 	resources := []Resource{
 		{

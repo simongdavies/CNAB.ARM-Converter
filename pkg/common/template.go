@@ -76,6 +76,7 @@ const AKSResourceGroupParameterName = "aksClusterResourceGroupName"
 const CustomLocationResourceParameterName = "customLocationResource"
 const CustomLocationRGParameterName = "customLocationRG"
 const KubeConfigParameterName = "kubeconfig"
+const KubeNamespaceParameterName = "namespace"
 const LocationParameterName = "location"
 const DebugParameterName = "debug"
 

@@ -113,7 +113,45 @@ func GenerateArcTemplate(options common.BundleDetails) (*template.Template, *bun
 		return nil, nil, err
 	}
 
-	// TODO: add parameters and credentials
+	parameterKeys, err := getParameterKeys(*bundle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parameters := make(map[string]string)
+
+	for _, parameterKey := range parameterKeys {
+
+		parameter := bundle.Parameters[parameterKey]
+		definition := bundle.Definitions[parameter.Definition]
+
+		if (parameter.AppliesTo("install") || (parameter.AppliesTo("upgrade") && !isParamFromOutputOnly(parameterKey, parameter, bundle))) && strings.ToLower(parameterKey) != common.KubeNamespaceParameterName {
+			templateParameter, _, err := genParameter(parameter, definition)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			generatedTemplate.Parameters[parameterKey] = *templateParameter
+			parameters[parameterKey] = fmt.Sprintf("[parameters('%s')]", parameterKey)
+
+		}
+
+		if strings.ToLower(parameterKey) == common.KubeNamespaceParameterName {
+			parameters[parameterKey] = "[reference(concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',parameters('customLocationRG'),'/providers/Microsoft.ExtendedLocation/customLocations/',parameters('customLocationResource'))).namespace]"
+		}
+	}
+
+	if len(parameters) > 0 {
+		if properties, OK := generatedTemplate.Resources[0].Properties.(template.CNABInstallation); OK {
+			properties.Parameters = parameters
+			generatedTemplate.Resources[0].Properties = parameters
+
+		} else {
+			return nil, nil, err
+		}
+	}
+
+	// TODO: add credentials
 
 	return generatedTemplate, bundle, nil
 }

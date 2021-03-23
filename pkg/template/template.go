@@ -284,10 +284,11 @@ type RoleAssignment struct {
 	PrincipalType    string `json:"principalType"`
 }
 
-// RoleAssignment defines a role assignment in the generated template
+// CNABInstallation defines a properties for an ARC installations resource
 type CNABInstallation struct {
-	Reference string `json:"reference"`
-	Action    string `json:"action"`
+	Reference  string            `json:"reference"`
+	Action     string            `json:"action"`
+	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
 // Output defines an output in the generated template
