@@ -137,7 +137,7 @@ func GenerateArcTemplate(options common.BundleDetails) (*template.Template, *bun
 		}
 
 		if strings.ToLower(parameterKey) == common.KubeNamespaceParameterName {
-			parameters[parameterKey] = "[reference(concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',parameters('customLocationRG'),'/providers/Microsoft.ExtendedLocation/customLocations/',parameters('customLocationResource'))).namespace]"
+			parameters[parameterKey] = "[reference(resourceId(parameters('customLocationRG'),'Microsoft.ExtendedLocation/customLocations/,parameters('customLocationResource'))).namespace]"
 		}
 	}
 
