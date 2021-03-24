@@ -144,7 +144,7 @@ func GenerateArcTemplate(options common.BundleDetails) (*template.Template, *bun
 	if len(parameters) > 0 {
 		if properties, OK := generatedTemplate.Resources[0].Properties.(template.CNABInstallation); OK {
 			properties.Parameters = parameters
-			generatedTemplate.Resources[0].Properties = parameters
+			generatedTemplate.Resources[0].Properties = properties
 
 		} else {
 			return nil, nil, err
