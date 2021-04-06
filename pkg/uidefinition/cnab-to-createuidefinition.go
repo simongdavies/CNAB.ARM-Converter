@@ -219,6 +219,13 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 	elementsMap["basics"] = []Element{}
 	elementsMap["Additional"] = []Element{}
 
+	// ARC in Dogfood requires location to be West US in prod requires eastus2canary
+
+	locations := []string{"eastus2euap"}
+	if isDogfood {
+		locations = []string{"westus"}
+	}
+
 	//TODO: Handle CustomRP and CustomLocation
 
 	if hasARCParams(*generatedTemplate) && !customRPUI {
@@ -232,21 +239,14 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 			Options: ResourceSelectorOptions{
 				Filter: ResourceSelectorFilter{
 					Subscription: OnBasics.String(),
-					Location:     All.String(),
+					Location:     locations[0],
 				},
 			},
 		})
 
+		UIDef.Parameters.Config.Basics.Location.AllowedValues = locations
 		outputs[common.CustomLocationRGParameterName] = "[last(take(split(steps('basics').customLocationSelector.id,'/'),5))]"
 		outputs[common.CustomLocationResourceParameterName] = "[steps('basics').customLocationSelector.name]"
-	}
-
-	// ARC in Dogfood requires location to be West US in prod requires eastus2canary
-
-	if isDogfood {
-		UIDef.Parameters.Config.Basics.Location.AllowedValues = []string{"westus"}
-	} else {
-		UIDef.Parameters.Config.Basics.Location.AllowedValues = []string{"eastus2euap"}
 	}
 
 	return processParameters(generatedTemplate, custom, &UIDef, outputs, elementsMap, customRPUI)
