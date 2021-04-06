@@ -241,9 +241,13 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 		outputs[common.CustomLocationResourceParameterName] = "[steps('basics').customLocationSelector.name]"
 	}
 
-	// ARC in Dogfood requires location to be West US
+	// ARC in Dogfood requires location to be West US in prod requires eastus2canary
 
-	UIDef.Parameters.Config.Basics.Location.AllowedValues = []string{"westus"}
+	if isDogfood {
+		UIDef.Parameters.Config.Basics.Location.AllowedValues = []string{"westus"}
+	} else {
+		UIDef.Parameters.Config.Basics.Location.AllowedValues = []string{"eastus2euap"}
+	}
 
 	return processParameters(generatedTemplate, custom, &UIDef, outputs, elementsMap, customRPUI)
 }
