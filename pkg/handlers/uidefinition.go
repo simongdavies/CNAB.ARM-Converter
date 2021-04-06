@@ -59,6 +59,7 @@ func uiHandler(w http.ResponseWriter, r *http.Request) {
 			Timeout:               bundle.Timeout,
 			IncludeCustomResource: bundle.IncludeCustomResource,
 			CustomRPTemplate:      bundle.CustomRPTemplate,
+			Dogfood:               bundle.Dogfood,
 		},
 	}
 

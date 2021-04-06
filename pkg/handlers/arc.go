@@ -41,6 +41,7 @@ func arcHandler(w http.ResponseWriter, r *http.Request) {
 			BundlePullOptions: &opts,
 			Timeout:           bundleContext.Timeout,
 			Debug:             bundleContext.Debug,
+			Dogfood:           bundleContext.Dogfood,
 		},
 	}
 	generatedTemplate, _, err := generator.GenerateArcTemplate(options)

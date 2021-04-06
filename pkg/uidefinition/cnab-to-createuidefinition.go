@@ -167,6 +167,11 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 	}
 
 	//TODO: set permission requests correctly for ARC template
+	provider := "Microsoft.Contoso"
+
+	if isDogfood {
+		provider = "Microsoft.CNAB"
+	}
 
 	UIDef := CreateUIDefinition{
 		Schema:  "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
@@ -179,14 +184,14 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 					Description: bundleDescription,
 					Subscription: &Subscription{
 						ResourceProviders: []string{
-							"Microsoft.CNAB",
+							provider,
 						},
 					},
 					ResourceGroup: &ResourceGroup{
 						Constraints: ResourceConstraints{
 							Validations: []ResourceValidation{
 								{
-									Permission: "Microsoft.CNAB/installations/write",
+									Permission: fmt.Sprintf("%s/installations/write", provider),
 									Message:    "Permission to create CNAB RP is needed in resource group ",
 								},
 							},
@@ -197,7 +202,7 @@ func NewArcCreateUIDefinition(bundleName string, bundleDescription string, gener
 						Label:   locationLabel,
 						Tooltip: locationToolTip,
 						ResourceTypes: []string{
-							"Microsoft.CNAB/installations",
+							fmt.Sprintf("%s/installations", provider),
 						},
 
 						Visible: true,

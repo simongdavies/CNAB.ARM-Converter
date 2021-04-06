@@ -107,7 +107,8 @@ func GenerateArcTemplate(options common.BundleDetails) (*template.Template, *bun
 
 	generatedTemplate, err := template.NewCnabArcTemplate(
 		bundle.Name,
-		bundleTag)
+		bundleTag,
+		options.Dogfood)
 
 	if err != nil {
 		return nil, nil, err

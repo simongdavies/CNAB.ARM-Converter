@@ -1,13 +1,18 @@
 package template
 
 // NewCnabarcTemplate creates a new instance of Template for running a CNAB bundle via the porter operator and arc
-func NewCnabArcTemplate(bundleName string, bundleTag string) (*Template, error) {
+func NewCnabArcTemplate(bundleName string, bundleTag string, isDogfood bool) (*Template, error) {
 
 	// TODO: does not handle credentials yet
 
+	resourceType := "Microsoft.Contoso/installations"
+	if isDogfood {
+		resourceType = "Microsoft.CNAB/installations"
+	}
+
 	resources := []Resource{
 		{
-			Type:       "Microsoft.CNAB/installations",
+			Type:       resourceType,
 			Name:       "[parameters('installation_name')]",
 			APIVersion: "2021-02-12-preview",
 			Location:   "westUS",
