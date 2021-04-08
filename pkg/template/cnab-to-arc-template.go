@@ -5,16 +5,18 @@ func NewCnabArcTemplate(bundleName string, bundleTag string, isDogfood bool) (*T
 
 	// TODO: does not handle credentials yet
 
+	apiVersion := "2021-04-01-preview"
 	resourceType := "Microsoft.Contoso/installations"
 	if isDogfood {
 		resourceType = "Microsoft.CNAB/installations"
+		apiVersion = "2021-02-12-preview"
 	}
 
 	resources := []Resource{
 		{
 			Type:       resourceType,
 			Name:       "[parameters('installation_name')]",
-			APIVersion: "2021-02-12-preview",
+			APIVersion: apiVersion,
 			Location:   "westUS",
 			ExtendedLocation: &ExtendedLocationProperties{
 				Type: "customLocation",
