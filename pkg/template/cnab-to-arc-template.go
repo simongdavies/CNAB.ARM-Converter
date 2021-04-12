@@ -7,9 +7,11 @@ func NewCnabArcTemplate(bundleName string, bundleTag string, isDogfood bool) (*T
 
 	apiVersion := "2021-04-01-preview"
 	resourceType := "Microsoft.Contoso/installations"
+	location := "eastus2euap"
 	if isDogfood {
 		resourceType = "Microsoft.CNAB/installations"
 		apiVersion = "2021-02-12-preview"
+		location = "westUS"
 	}
 
 	resources := []Resource{
@@ -17,7 +19,7 @@ func NewCnabArcTemplate(bundleName string, bundleTag string, isDogfood bool) (*T
 			Type:       resourceType,
 			Name:       "[parameters('installation_name')]",
 			APIVersion: apiVersion,
-			Location:   "westUS",
+			Location:   location,
 			ExtendedLocation: &ExtendedLocationProperties{
 				Type: "customLocation",
 				Name: "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',parameters('customLocationRG'),'/providers/Microsoft.ExtendedLocation/customLocations/',parameters('customLocationResource'))]",
